@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1772876828059,
+      "tag": "0000_perfect_emma_frost",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1772877017980,
+      "tag": "0001_wild_marvel_boy",
+      "breakpoints": true
+    }
+  ]
+}
