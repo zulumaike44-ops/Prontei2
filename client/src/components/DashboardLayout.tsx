@@ -27,6 +27,7 @@ import {
   PanelLeft,
   Settings,
   Calendar,
+  Users,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -35,6 +36,7 @@ import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Painel", path: "/dashboard" },
+  { icon: Users, label: "Profissionais", path: "/professionals" },
   { icon: Settings, label: "Configurações", path: "/settings" },
 ];
 

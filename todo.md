@@ -9,3 +9,17 @@
 - [x] 9G — Seed e dados mínimos de desenvolvimento
 - [x] 9H — Landing page e tela de login
 - [x] Testes vitest para rotas críticas (14 testes passando)
+- [x] 9I — Diagnóstico da divergência Prisma vs Drizzle
+- [x] 9J — Comparação objetiva Prisma vs Drizzle no contexto do projeto
+- [x] 9K — Recomendação final (manter Drizzle ou alinhar para Prisma)
+- [x] 9L — Plano de correção (6 ações definidas, nenhuma bloqueante)
+- [x] Registrar decisão de stack (canônica vs adaptada) em DECISAO-STACK.md
+- [x] 10A — Backend: queries de profissionais em server/db.ts
+- [x] 10B — Backend: rotas tRPC para CRUD de profissionais
+- [x] 10C — Backend: validações Zod e proteção multi-tenant
+- [x] 10D — Frontend: tela de listagem de profissionais no dashboard
+- [x] 10E — Frontend: formulário de criação de profissional
+- [x] 10F — Frontend: formulário de edição de profissional
+- [x] 10G — Frontend: soft delete (desativar) profissional
+- [x] 10H — Testes vitest para rotas de profissionais (16 testes passando)
+- [x] 10I — Navegação: adicionar link de Profissionais no sidebar

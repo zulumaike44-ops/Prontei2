@@ -1,4 +1,4 @@
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, asc, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -6,7 +6,9 @@ import {
   establishments,
   businessTypes,
   subscriptionPlans,
+  professionals,
   type InsertEstablishment,
+  type InsertProfessional,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -251,4 +253,114 @@ export async function generateUniqueSlug(name: string): Promise<string> {
 
   const suffix = Math.random().toString(36).slice(2, 6);
   return `${base}-${suffix}`;
+}
+
+// ============================================================
+// PROFESSIONAL QUERIES
+// ============================================================
+
+export async function getProfessionalsByEstablishment(establishmentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(professionals)
+    .where(
+      and(
+        eq(professionals.establishmentId, establishmentId),
+        isNull(professionals.deletedAt)
+      )
+    )
+    .orderBy(asc(professionals.displayOrder), asc(professionals.name));
+}
+
+export async function getProfessionalById(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(professionals)
+    .where(
+      and(
+        eq(professionals.id, id),
+        eq(professionals.establishmentId, establishmentId),
+        isNull(professionals.deletedAt)
+      )
+    )
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createProfessional(data: InsertProfessional) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(professionals).values(data);
+  const insertId = result[0].insertId;
+
+  return getProfessionalById(insertId, data.establishmentId);
+}
+
+export async function updateProfessional(
+  id: number,
+  establishmentId: number,
+  data: Partial<Omit<InsertProfessional, "id" | "establishmentId" | "createdAt">>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(professionals)
+    .set({ ...data, updatedAt: new Date() })
+    .where(
+      and(
+        eq(professionals.id, id),
+        eq(professionals.establishmentId, establishmentId),
+        isNull(professionals.deletedAt)
+      )
+    );
+
+  return getProfessionalById(id, establishmentId);
+}
+
+export async function softDeleteProfessional(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(professionals)
+    .set({
+      deletedAt: new Date(),
+      isActive: false,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(professionals.id, id),
+        eq(professionals.establishmentId, establishmentId),
+        isNull(professionals.deletedAt)
+      )
+    );
+
+  return { success: true };
+}
+
+export async function countProfessionalsByEstablishment(establishmentId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(professionals)
+    .where(
+      and(
+        eq(professionals.establishmentId, establishmentId),
+        isNull(professionals.deletedAt)
+      )
+    );
+
+  return Number(result[0]?.count ?? 0);
 }
