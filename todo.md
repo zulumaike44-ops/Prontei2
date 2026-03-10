@@ -1,4 +1,4 @@
-# Project TODO — Agiliza no Zap (Etapa 9)
+# Project TODO — Prontei
 
 - [x] 9A — Estrutura de pastas e configuração base
 - [x] 9B — Tema visual (cores terracota/creme, fontes Outfit+Source Sans 3, CSS tokens)
@@ -54,3 +54,11 @@
 - [x] 12F — Testes vitest para working_hours (17 testes passando)
 - [x] 12F — Testes de isolamento multi-tenant
 - [x] 12G — Validação final e checkpoint
+
+## RENOMEAÇÃO — Concluída: Agiliza no Zap → Prontei
+
+- [x] R1 — Diagnóstico: varredura completa de referências ao nome antigo (15 ocorrências em 11 arquivos)
+- [x] R2 — Alterações no frontend (landing, dashboard, sidebar, onboarding, settings)
+- [x] R3 — Alterações no backend (nenhuma referência encontrada no backend)
+- [x] R4 — Alterações em documentação e testes (ideas.md, asset-urls.md, DECISAO-STACK.md, todo.md)
+- [x] R5 — Validação final: 0 referências residuais em código visível, 75 testes passando, checkpoint salvo

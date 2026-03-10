@@ -1,4 +1,4 @@
-# Asset URLs — Agiliza no Zap
+# Asset URLs — Prontei
 
 ## Hero Banner
 - Original: https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/hero-banner-4b9irs2NUeWM3gVarBv8t9.png

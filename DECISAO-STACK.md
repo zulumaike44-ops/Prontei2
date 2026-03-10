@@ -1,4 +1,4 @@
-# Decisão de Stack — Agiliza no Zap
+# Decisão de Stack — Prontei
 
 **Data:** 07/03/2026  
 **Status:** Aprovada pelo product owner

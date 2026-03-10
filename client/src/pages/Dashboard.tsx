@@ -54,7 +54,7 @@ export default function Dashboard() {
           </div>
           <div className="text-center">
             <h2 className="font-heading text-2xl font-semibold text-foreground mb-2">
-              Bem-vindo ao Agiliza no Zap!
+              Bem-vindo ao Prontei!
             </h2>
             <p className="text-muted-foreground max-w-md">
               Vamos configurar seu estabelecimento para você começar a receber

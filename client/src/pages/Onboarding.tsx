@@ -196,7 +196,7 @@ export default function Onboarding() {
             <Calendar className="w-4 h-4 text-primary-foreground" />
           </div>
           <span className="font-heading text-lg font-semibold">
-            Agiliza no Zap
+            Prontei
           </span>
         </div>
       </div>

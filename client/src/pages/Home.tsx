@@ -34,7 +34,7 @@ export default function Home() {
               <Calendar className="w-4 h-4 text-primary-foreground" />
             </div>
             <span className="font-heading text-lg font-semibold text-foreground">
-              Agiliza no Zap
+              Prontei
             </span>
           </div>
           <Button
@@ -178,8 +178,8 @@ export default function Home() {
       <footer className="py-8 border-t border-border/50">
         <div className="container text-center">
           <p className="text-sm text-muted-foreground">
-            Agiliza no Zap &copy; {new Date().getFullYear()} — Feito com
-            dedicação para microempreendedores brasileiros.
+            Prontei &copy; {new Date().getFullYear()} — Agendamento inteligente
+            para negócios.
           </p>
         </div>
       </footer>

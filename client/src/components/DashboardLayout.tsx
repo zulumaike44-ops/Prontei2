@@ -78,7 +78,7 @@ export default function DashboardLayout({
               Entre para continuar
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Faça login para acessar o painel do Agiliza no Zap.
+              Faça login para acessar o painel do Prontei.
             </p>
           </div>
           <Button
@@ -188,7 +188,7 @@ function DashboardLayoutContent({
                     <Calendar className="w-3.5 h-3.5 text-sidebar-primary-foreground" />
                   </div>
                   <span className="font-heading font-semibold tracking-tight truncate text-sidebar-foreground">
-                    Agiliza
+                    Prontei
                   </span>
                 </div>
               ) : null}

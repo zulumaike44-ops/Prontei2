@@ -1,6 +1,6 @@
-# Agiliza no Zap — Brainstorm de Design
+# Prontei — Brainstorm de Design
 
-O Agiliza no Zap é um SaaS de agendamentos para microempreendedores brasileiros (salões, barbearias, estúdios). O público é leigo em tecnologia, usa celular como ferramenta principal, e precisa de uma interface que transmita profissionalismo sem intimidar.
+O Prontei é um SaaS de agendamentos para microempreendedores brasileiros (salões, barbearias, estúdios). O público é leigo em tecnologia, usa celular como ferramenta principal, e precisa de uma interface que transmita profissionalismo sem intimidar.
 
 ---
 
