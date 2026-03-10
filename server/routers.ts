@@ -27,6 +27,8 @@ import {
   getServiceProfessionalLinks,
   upsertProfessionalService,
   removeProfessionalService,
+  getWorkingHoursByProfessional,
+  saveWeeklySchedule,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 
@@ -566,6 +568,138 @@ export const appRouter = router({
           });
         }
         return getServiceProfessionalLinks(input.serviceId, establishment.id);
+      }),
+  }),
+
+  // ============================================================
+  // WORKING HOURS (protected — tenant-scoped)
+  // ============================================================
+  workingHours: router({
+    /** Get weekly schedule for a professional */
+    getByProfessional: protectedProcedure
+      .input(z.object({ professionalId: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        // Verify professional belongs to tenant
+        const prof = await getProfessionalById(
+          input.professionalId,
+          establishment.id
+        );
+        if (!prof) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Profissional não encontrado.",
+          });
+        }
+        return getWorkingHoursByProfessional(
+          input.professionalId,
+          establishment.id
+        );
+      }),
+
+    /** Save complete weekly schedule for a professional (replace all) */
+    saveWeek: protectedProcedure
+      .input(
+        z.object({
+          professionalId: z.number().int().positive(),
+          schedule: z.array(
+            z.object({
+              dayOfWeek: z.number().int().min(0).max(6),
+              startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Formato deve ser HH:MM"),
+              endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Formato deve ser HH:MM"),
+              breakStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Formato deve ser HH:MM").nullable().optional(),
+              breakEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Formato deve ser HH:MM").nullable().optional(),
+              isActive: z.boolean(),
+            })
+          ).min(1).max(7),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // Verify professional belongs to tenant
+        const prof = await getProfessionalById(
+          input.professionalId,
+          establishment.id
+        );
+        if (!prof) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Profissional não encontrado.",
+          });
+        }
+
+        // Validate business rules for each day
+        const seenDays = new Set<number>();
+        for (const day of input.schedule) {
+          // Check for duplicate days
+          if (seenDays.has(day.dayOfWeek)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Dia da semana ${day.dayOfWeek} duplicado na grade.`,
+            });
+          }
+          seenDays.add(day.dayOfWeek);
+
+          // Only validate times for active days
+          if (!day.isActive) continue;
+
+          // start_time < end_time
+          if (day.startTime >= day.endTime) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Horário de início deve ser anterior ao horário de término (dia ${day.dayOfWeek}).`,
+            });
+          }
+
+          // Break validation
+          const hasBreakStart = day.breakStart != null && day.breakStart !== "";
+          const hasBreakEnd = day.breakEnd != null && day.breakEnd !== "";
+
+          if (hasBreakStart !== hasBreakEnd) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Início e fim do intervalo devem ser informados juntos (dia ${day.dayOfWeek}).`,
+            });
+          }
+
+          if (hasBreakStart && hasBreakEnd) {
+            const breakStart = day.breakStart!;
+            const breakEnd = day.breakEnd!;
+
+            // break_start < break_end
+            if (breakStart >= breakEnd) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Início do intervalo deve ser anterior ao fim do intervalo (dia ${day.dayOfWeek}).`,
+              });
+            }
+
+            // Break must be within working hours
+            if (breakStart < day.startTime || breakEnd > day.endTime) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Intervalo deve estar dentro do horário de trabalho (dia ${day.dayOfWeek}).`,
+              });
+            }
+          }
+        }
+
+        // Normalize schedule
+        const normalized = input.schedule.map((day) => ({
+          dayOfWeek: day.dayOfWeek,
+          startTime: day.startTime,
+          endTime: day.endTime,
+          breakStart: (day.breakStart && day.breakStart !== "") ? day.breakStart : null,
+          breakEnd: (day.breakEnd && day.breakEnd !== "") ? day.breakEnd : null,
+          isActive: day.isActive,
+        }));
+
+        return saveWeeklySchedule(
+          input.professionalId,
+          establishment.id,
+          normalized
+        );
       }),
   }),
 });

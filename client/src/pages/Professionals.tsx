@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -357,18 +358,28 @@ function ProfessionalCard({
           </p>
         )}
 
-        {/* Toggle services section */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 mt-4 transition-colors"
-        >
-          {expanded ? (
-            <ChevronUp className="w-3.5 h-3.5" />
-          ) : (
-            <ChevronDown className="w-3.5 h-3.5" />
-          )}
-          {expanded ? "Ocultar serviços" : "Ver serviços vinculados"}
-        </button>
+        {/* Action buttons */}
+        <div className="flex items-center gap-3 mt-4">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+          >
+            {expanded ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+            {expanded ? "Ocultar serviços" : "Ver serviços vinculados"}
+          </button>
+          <span className="text-border">|</span>
+          <a
+            href={`/working-hours/${prof.id}`}
+            className="flex items-center gap-1.5 text-xs text-teal hover:text-teal/80 transition-colors"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            Horários
+          </a>
+        </div>
       </div>
 
       {/* Expandable services section */}

@@ -10,6 +10,7 @@ import Onboarding from "./pages/Onboarding";
 import Settings from "./pages/Settings";
 import Professionals from "./pages/Professionals";
 import Services from "./pages/Services";
+import WorkingHours from "./pages/WorkingHours";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/professionals" component={Professionals} />
       <Route path="/services" component={Services} />
+      <Route path="/working-hours/:id" component={WorkingHours} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

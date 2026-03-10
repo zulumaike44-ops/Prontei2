@@ -9,6 +9,7 @@ import {
   professionals,
   services,
   professionalServices,
+  workingHours,
   type InsertEstablishment,
   type InsertProfessional,
   type InsertService,
@@ -600,4 +601,72 @@ export async function removeProfessionalService(
     );
 
   return { success: true };
+}
+
+// ============================================================
+// WORKING_HOURS QUERIES
+// ============================================================
+
+export async function getWorkingHoursByProfessional(
+  professionalId: number,
+  establishmentId: number
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(workingHours)
+    .where(
+      and(
+        eq(workingHours.professionalId, professionalId),
+        eq(workingHours.establishmentId, establishmentId)
+      )
+    )
+    .orderBy(asc(workingHours.dayOfWeek));
+}
+
+export async function saveWeeklySchedule(
+  professionalId: number,
+  establishmentId: number,
+  schedule: Array<{
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    breakStart: string | null;
+    breakEnd: string | null;
+    isActive: boolean;
+  }>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Delete existing schedule for this professional in this establishment
+  await db
+    .delete(workingHours)
+    .where(
+      and(
+        eq(workingHours.professionalId, professionalId),
+        eq(workingHours.establishmentId, establishmentId)
+      )
+    );
+
+  // Insert new schedule (only active days or all days for completeness)
+  if (schedule.length > 0) {
+    const rows = schedule.map((day) => ({
+      establishmentId,
+      professionalId,
+      dayOfWeek: day.dayOfWeek,
+      startTime: day.startTime,
+      endTime: day.endTime,
+      breakStart: day.breakStart,
+      breakEnd: day.breakEnd,
+      isActive: day.isActive,
+    }));
+
+    await db.insert(workingHours).values(rows);
+  }
+
+  // Return the saved schedule
+  return getWorkingHoursByProfessional(professionalId, establishmentId);
 }

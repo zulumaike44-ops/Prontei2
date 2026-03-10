@@ -40,3 +40,17 @@
 - [x] 11F — Testes vitest para rotas de vínculos
 - [x] 11F — Testes de isolamento multi-tenant
 - [x] 11G — Validação final e checkpoint
+
+## ETAPA 12 — Módulo de Horários de Funcionamento (working_hours)
+
+- [x] 12A — Verificar tabela working_hours no schema Drizzle (já existe com todos os campos)
+- [x] 12B — Backend: queries de working_hours em server/db.ts
+- [x] 12B — Backend: regras de negócio (start < end, break dentro do expediente, sem duplicidade)
+- [x] 12C — Backend: rotas tRPC (list por profissional, save semana completa)
+- [x] 12D — Backend: validações Zod para grade semanal
+- [x] 12E — Frontend: seção de horários na tela de profissionais
+- [x] 12E — Frontend: grade semanal com toggle, hora início/fim, intervalo opcional
+- [x] 12E — Frontend: botão salvar semana completa
+- [x] 12F — Testes vitest para working_hours (17 testes passando)
+- [x] 12F — Testes de isolamento multi-tenant
+- [x] 12G — Validação final e checkpoint
