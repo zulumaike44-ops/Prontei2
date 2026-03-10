@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
+import ProfessionalServices from "@/components/ProfessionalServices";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
@@ -15,6 +16,8 @@ import {
   Search,
   MoreHorizontal,
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,7 +47,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 
@@ -65,12 +67,10 @@ function ProfessionalForm({
   open,
   onOpenChange,
   professional,
-  establishmentId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   professional?: Professional | null;
-  establishmentId?: number;
 }) {
   const isEditing = !!professional;
   const [name, setName] = useState("");
@@ -92,7 +92,9 @@ function ProfessionalForm({
       if (error.message.includes("Limite")) {
         toast.error(error.message);
       } else if (error.message.includes("Duplicate")) {
-        setErrors({ email: "Este e-mail já está cadastrado para outro profissional." });
+        setErrors({
+          email: "Este e-mail já está cadastrado para outro profissional.",
+        });
       } else {
         toast.error("Erro ao cadastrar profissional. Tente novamente.");
       }
@@ -107,7 +109,9 @@ function ProfessionalForm({
     },
     onError: (error) => {
       if (error.message.includes("Duplicate")) {
-        setErrors({ email: "Este e-mail já está cadastrado para outro profissional." });
+        setErrors({
+          email: "Este e-mail já está cadastrado para outro profissional.",
+        });
       } else {
         toast.error("Erro ao atualizar profissional. Tente novamente.");
       }
@@ -257,25 +261,145 @@ function ProfessionalForm({
 }
 
 // ============================================================
+// PROFESSIONAL CARD with expandable services section
+// ============================================================
+function ProfessionalCard({
+  prof,
+  onEdit,
+  onDelete,
+}: {
+  prof: Professional;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div
+      className={`bg-card rounded-xl border border-border/50 shadow-sm transition-all hover:shadow-md ${
+        !prof.isActive ? "opacity-60" : ""
+      }`}
+    >
+      <div className="p-5">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-11 w-11 border border-border/50">
+              <AvatarFallback className="text-sm font-medium bg-teal/10 text-teal">
+                {prof.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <h3 className="font-heading font-semibold text-foreground truncate">
+                {prof.name}
+              </h3>
+              {!prof.isActive && (
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  Inativo
+                </span>
+              )}
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="w-4 h-4 mr-2" />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={onDelete}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Remover
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="space-y-2 text-sm">
+          {prof.email && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Mail className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{prof.email}</span>
+            </div>
+          )}
+          {prof.phone && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Phone className="w-3.5 h-3.5 shrink-0" />
+              <span>{prof.phone}</span>
+            </div>
+          )}
+          {!prof.email && !prof.phone && (
+            <div className="flex items-center gap-2 text-muted-foreground/50">
+              <UserCircle className="w-3.5 h-3.5 shrink-0" />
+              <span className="italic">Sem contato cadastrado</span>
+            </div>
+          )}
+        </div>
+
+        {prof.bio && (
+          <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+            {prof.bio}
+          </p>
+        )}
+
+        {/* Toggle services section */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 mt-4 transition-colors"
+        >
+          {expanded ? (
+            <ChevronUp className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5" />
+          )}
+          {expanded ? "Ocultar serviços" : "Ver serviços vinculados"}
+        </button>
+      </div>
+
+      {/* Expandable services section */}
+      {expanded && (
+        <div className="border-t border-border/50 p-4 bg-muted/20 rounded-b-xl">
+          <ProfessionalServices
+            professionalId={prof.id}
+            professionalName={prof.name}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // MAIN PAGE
 // ============================================================
 export default function Professionals() {
   const { loading: authLoading, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
 
-  const {
-    data: establishment,
-    isLoading: estLoading,
-  } = trpc.establishment.mine.useQuery(undefined, {
-    enabled: isAuthenticated,
-  });
+  const { data: establishment, isLoading: estLoading } =
+    trpc.establishment.mine.useQuery(undefined, {
+      enabled: isAuthenticated,
+    });
 
-  const {
-    data: professionalsList,
-    isLoading: profsLoading,
-  } = trpc.professional.list.useQuery(undefined, {
-    enabled: isAuthenticated && !!establishment,
-  });
+  const { data: professionalsList, isLoading: profsLoading } =
+    trpc.professional.list.useQuery(undefined, {
+      enabled: isAuthenticated && !!establishment,
+    });
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProfessional, setEditingProfessional] =
@@ -298,7 +422,6 @@ export default function Professionals() {
     },
   });
 
-  // Redirect to onboarding if needed
   useEffect(() => {
     if (!authLoading && !estLoading) {
       if (establishment && !establishment.onboardingCompleted) {
@@ -309,10 +432,11 @@ export default function Professionals() {
 
   const isLoading = authLoading || estLoading || profsLoading;
 
-  const filteredProfessionals = (professionalsList ?? []).filter((p) =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (p.phone && p.phone.includes(searchTerm))
+  const filteredProfessionals = (professionalsList ?? []).filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.phone && p.phone.includes(searchTerm))
   );
 
   if (isLoading) {
@@ -407,97 +531,21 @@ export default function Professionals() {
           </div>
         )}
 
-        {/* Professionals List */}
+        {/* Professionals Grid */}
         {filteredProfessionals.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredProfessionals.map((prof) => (
-              <div
+              <ProfessionalCard
                 key={prof.id}
-                className={`bg-card rounded-xl border border-border/50 p-5 shadow-sm transition-all hover:shadow-md ${
-                  !prof.isActive ? "opacity-60" : ""
-                }`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-11 w-11 border border-border/50">
-                      <AvatarFallback className="text-sm font-medium bg-teal/10 text-teal">
-                        {prof.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .slice(0, 2)
-                          .join("")
-                          .toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <h3 className="font-heading font-semibold text-foreground truncate">
-                        {prof.name}
-                      </h3>
-                      {!prof.isActive && (
-                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                          Inativo
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setEditingProfessional(prof);
-                          setIsFormOpen(true);
-                        }}
-                      >
-                        <Pencil className="w-4 h-4 mr-2" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setDeletingProfessional(prof)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Remover
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  {prof.email && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Mail className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">{prof.email}</span>
-                    </div>
-                  )}
-                  {prof.phone && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="w-3.5 h-3.5 shrink-0" />
-                      <span>{prof.phone}</span>
-                    </div>
-                  )}
-                  {!prof.email && !prof.phone && (
-                    <div className="flex items-center gap-2 text-muted-foreground/50">
-                      <UserCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span className="italic">Sem contato cadastrado</span>
-                    </div>
-                  )}
-                </div>
-
-                {prof.bio && (
-                  <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
-                    {prof.bio}
-                  </p>
-                )}
-              </div>
+                prof={prof as Professional}
+                onEdit={() => {
+                  setEditingProfessional(prof as Professional);
+                  setIsFormOpen(true);
+                }}
+                onDelete={() =>
+                  setDeletingProfessional(prof as Professional)
+                }
+              />
             ))}
           </div>
         )}
@@ -520,7 +568,6 @@ export default function Professionals() {
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         professional={editingProfessional}
-        establishmentId={establishment.id}
       />
 
       {/* Delete Confirmation */}

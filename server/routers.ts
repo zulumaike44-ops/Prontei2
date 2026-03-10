@@ -17,6 +17,16 @@ import {
   updateProfessional,
   softDeleteProfessional,
   countProfessionalsByEstablishment,
+  getServicesByEstablishment,
+  getServiceById,
+  createService,
+  updateService,
+  softDeleteService,
+  countServicesByEstablishment,
+  getProfessionalServiceLinks,
+  getServiceProfessionalLinks,
+  upsertProfessionalService,
+  removeProfessionalService,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 
@@ -65,12 +75,10 @@ export const appRouter = router({
   // ESTABLISHMENT (protected — tenant owner)
   // ============================================================
   establishment: router({
-    /** Get current user's establishment (tenant resolution) */
     mine: protectedProcedure.query(async ({ ctx }) => {
       return getEstablishmentByOwnerId(ctx.user.id);
     }),
 
-    /** Create a new establishment (onboarding step 1) */
     create: protectedProcedure
       .input(
         z.object({
@@ -107,7 +115,6 @@ export const appRouter = router({
         return establishment;
       }),
 
-    /** Update establishment profile */
     update: protectedProcedure
       .input(
         z.object({
@@ -137,7 +144,6 @@ export const appRouter = router({
         return updateEstablishment(establishment.id, ctx.user.id, input);
       }),
 
-    /** Advance onboarding to next step */
     advanceOnboarding: protectedProcedure
       .input(
         z.object({
@@ -175,13 +181,11 @@ export const appRouter = router({
   // PROFESSIONALS (protected — tenant-scoped)
   // ============================================================
   professional: router({
-    /** List all professionals for current tenant */
     list: protectedProcedure.query(async ({ ctx }) => {
       const establishment = await resolveTenant(ctx.user.id);
       return getProfessionalsByEstablishment(establishment.id);
     }),
 
-    /** Get a single professional by ID */
     get: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .query(async ({ ctx, input }) => {
@@ -199,11 +203,13 @@ export const appRouter = router({
         return professional;
       }),
 
-    /** Create a new professional */
     create: protectedProcedure
       .input(
         z.object({
-          name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres").max(150),
+          name: z
+            .string()
+            .min(2, "Nome deve ter pelo menos 2 caracteres")
+            .max(150),
           email: z
             .string()
             .email("E-mail inválido")
@@ -217,11 +223,9 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const establishment = await resolveTenant(ctx.user.id);
 
-        // Check plan limits
         const count = await countProfessionalsByEstablishment(
           establishment.id
         );
-        // MVP: limit to 50 professionals per establishment
         if (count >= 50) {
           throw new TRPCError({
             code: "FORBIDDEN",
@@ -237,13 +241,12 @@ export const appRouter = router({
           phone: input.phone || null,
           bio: input.bio || null,
           isActive: true,
-          displayOrder: count, // append at end
+          displayOrder: count,
         });
 
         return professional;
       }),
 
-    /** Update an existing professional */
     update: protectedProcedure
       .input(
         z.object({
@@ -274,7 +277,6 @@ export const appRouter = router({
         }
 
         const { id, ...updateData } = input;
-        // Normalize empty strings to null
         const normalized = {
           ...updateData,
           email: updateData.email || null,
@@ -285,7 +287,6 @@ export const appRouter = router({
         return updateProfessional(id, establishment.id, normalized);
       }),
 
-    /** Soft delete a professional */
     delete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ ctx, input }) => {
@@ -304,11 +305,268 @@ export const appRouter = router({
         return softDeleteProfessional(input.id, establishment.id);
       }),
 
-    /** Count professionals for current tenant */
     count: protectedProcedure.query(async ({ ctx }) => {
       const establishment = await resolveTenant(ctx.user.id);
-      return { count: await countProfessionalsByEstablishment(establishment.id) };
+      return {
+        count: await countProfessionalsByEstablishment(establishment.id),
+      };
     }),
+
+    /** List services linked to a professional */
+    services: protectedProcedure
+      .input(z.object({ professionalId: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        // Verify professional belongs to tenant
+        const prof = await getProfessionalById(
+          input.professionalId,
+          establishment.id
+        );
+        if (!prof) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Profissional não encontrado.",
+          });
+        }
+        return getProfessionalServiceLinks(
+          input.professionalId,
+          establishment.id
+        );
+      }),
+
+    /** Link a service to a professional (upsert) */
+    linkService: protectedProcedure
+      .input(
+        z.object({
+          professionalId: z.number().int().positive(),
+          serviceId: z.number().int().positive(),
+          customPrice: z.string().optional(),
+          customDurationMinutes: z.number().int().positive().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // Verify professional belongs to tenant
+        const prof = await getProfessionalById(
+          input.professionalId,
+          establishment.id
+        );
+        if (!prof) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Profissional não encontrado.",
+          });
+        }
+
+        // Verify service belongs to tenant
+        const svc = await getServiceById(input.serviceId, establishment.id);
+        if (!svc) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Serviço não encontrado.",
+          });
+        }
+
+        return upsertProfessionalService({
+          professionalId: input.professionalId,
+          serviceId: input.serviceId,
+          customPrice: input.customPrice ?? null,
+          customDurationMinutes: input.customDurationMinutes ?? null,
+        });
+      }),
+
+    /** Unlink a service from a professional */
+    unlinkService: protectedProcedure
+      .input(
+        z.object({
+          professionalId: z.number().int().positive(),
+          serviceId: z.number().int().positive(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // Verify professional belongs to tenant
+        const prof = await getProfessionalById(
+          input.professionalId,
+          establishment.id
+        );
+        if (!prof) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Profissional não encontrado.",
+          });
+        }
+
+        return removeProfessionalService(
+          input.professionalId,
+          input.serviceId
+        );
+      }),
+  }),
+
+  // ============================================================
+  // SERVICES (protected — tenant-scoped)
+  // ============================================================
+  service: router({
+    /** List all services for current tenant */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const establishment = await resolveTenant(ctx.user.id);
+      return getServicesByEstablishment(establishment.id);
+    }),
+
+    /** Get a single service by ID */
+    get: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const service = await getServiceById(input.id, establishment.id);
+        if (!service) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Serviço não encontrado.",
+          });
+        }
+        return service;
+      }),
+
+    /** Create a new service */
+    create: protectedProcedure
+      .input(
+        z.object({
+          name: z
+            .string()
+            .min(2, "Nome deve ter pelo menos 2 caracteres")
+            .max(200),
+          description: z.string().max(500).optional().or(z.literal("")),
+          durationMinutes: z
+            .number()
+            .int()
+            .positive("Duração deve ser maior que zero")
+            .max(480, "Duração máxima de 8 horas"),
+          price: z.string().refine(
+            (val) => {
+              const num = parseFloat(val);
+              return !isNaN(num) && num >= 0;
+            },
+            { message: "Preço deve ser um valor numérico >= 0" }
+          ),
+          category: z.string().max(100).optional().or(z.literal("")),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // Check plan limits
+        const count = await countServicesByEstablishment(establishment.id);
+        if (count >= 100) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Limite de serviços atingido. Máximo de 100 por estabelecimento.",
+          });
+        }
+
+        const service = await createService({
+          establishmentId: establishment.id,
+          name: input.name,
+          description: input.description || null,
+          durationMinutes: input.durationMinutes,
+          price: input.price,
+          category: input.category || null,
+          isActive: true,
+          displayOrder: count,
+        });
+
+        return service;
+      }),
+
+    /** Update an existing service */
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          name: z.string().min(2).max(200).optional(),
+          description: z.string().max(500).optional().or(z.literal("")),
+          durationMinutes: z
+            .number()
+            .int()
+            .positive()
+            .max(480)
+            .optional(),
+          price: z
+            .string()
+            .refine(
+              (val) => {
+                const num = parseFloat(val);
+                return !isNaN(num) && num >= 0;
+              },
+              { message: "Preço deve ser um valor numérico >= 0" }
+            )
+            .optional(),
+          category: z.string().max(100).optional().or(z.literal("")),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const existing = await getServiceById(input.id, establishment.id);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Serviço não encontrado.",
+          });
+        }
+
+        const { id, ...updateData } = input;
+        const normalized = {
+          ...updateData,
+          description: updateData.description || null,
+          category: updateData.category || null,
+        };
+
+        return updateService(id, establishment.id, normalized);
+      }),
+
+    /** Soft delete a service */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const existing = await getServiceById(input.id, establishment.id);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Serviço não encontrado.",
+          });
+        }
+
+        return softDeleteService(input.id, establishment.id);
+      }),
+
+    /** Count services for current tenant */
+    count: protectedProcedure.query(async ({ ctx }) => {
+      const establishment = await resolveTenant(ctx.user.id);
+      return {
+        count: await countServicesByEstablishment(establishment.id),
+      };
+    }),
+
+    /** List professionals linked to a service */
+    professionals: protectedProcedure
+      .input(z.object({ serviceId: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const svc = await getServiceById(input.serviceId, establishment.id);
+        if (!svc) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Serviço não encontrado.",
+          });
+        }
+        return getServiceProfessionalLinks(input.serviceId, establishment.id);
+      }),
   }),
 });
 

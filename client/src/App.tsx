@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
 import Settings from "./pages/Settings";
 import Professionals from "./pages/Professionals";
+import Services from "./pages/Services";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/settings" component={Settings} />
       <Route path="/professionals" component={Professionals} />
+      <Route path="/services" component={Services} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

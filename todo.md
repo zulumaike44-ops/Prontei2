@@ -23,3 +23,20 @@
 - [x] 10G — Frontend: soft delete (desativar) profissional
 - [x] 10H — Testes vitest para rotas de profissionais (16 testes passando)
 - [x] 10I — Navegação: adicionar link de Profissionais no sidebar
+
+## ETAPA 11 — Módulo de Serviços
+- [x] 11A — Verificar tabelas services e professional_services no schema Drizzle (já existem)
+- [x] 11B — Backend: queries CRUD de serviços em server/db.ts
+- [x] 11B — Backend: queries de vínculo profissional-serviço em server/db.ts
+- [x] 11B — Backend: rotas tRPC para serviços (list, get, create, update, delete)
+- [x] 11B — Backend: rotas tRPC para vínculos (list, set, remove)
+- [x] 11C — Validações Zod para serviços e vínculos
+- [x] 11D — Frontend: tela de listagem de serviços (/services)
+- [x] 11D — Frontend: formulário de criação/edição de serviço
+- [x] 11D — Frontend: soft delete de serviço
+- [x] 11E — Frontend: seção de vínculos profissional-serviço
+- [x] 11E — Frontend: customização de preço/duração por profissional
+- [x] 11F — Testes vitest para rotas de serviços
+- [x] 11F — Testes vitest para rotas de vínculos
+- [x] 11F — Testes de isolamento multi-tenant
+- [x] 11G — Validação final e checkpoint

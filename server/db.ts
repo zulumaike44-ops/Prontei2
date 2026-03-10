@@ -7,8 +7,11 @@ import {
   businessTypes,
   subscriptionPlans,
   professionals,
+  services,
+  professionalServices,
   type InsertEstablishment,
   type InsertProfessional,
+  type InsertService,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -363,4 +366,238 @@ export async function countProfessionalsByEstablishment(establishmentId: number)
     );
 
   return Number(result[0]?.count ?? 0);
+}
+
+// ============================================================
+// SERVICE QUERIES
+// ============================================================
+
+export async function getServicesByEstablishment(establishmentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(services)
+    .where(
+      and(
+        eq(services.establishmentId, establishmentId),
+        isNull(services.deletedAt)
+      )
+    )
+    .orderBy(asc(services.displayOrder), asc(services.name));
+}
+
+export async function getServiceById(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(services)
+    .where(
+      and(
+        eq(services.id, id),
+        eq(services.establishmentId, establishmentId),
+        isNull(services.deletedAt)
+      )
+    )
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createService(data: InsertService) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(services).values(data);
+  const insertId = result[0].insertId;
+
+  return getServiceById(insertId, data.establishmentId);
+}
+
+export async function updateService(
+  id: number,
+  establishmentId: number,
+  data: Partial<Omit<InsertService, "id" | "establishmentId" | "createdAt">>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(services)
+    .set({ ...data, updatedAt: new Date() })
+    .where(
+      and(
+        eq(services.id, id),
+        eq(services.establishmentId, establishmentId),
+        isNull(services.deletedAt)
+      )
+    );
+
+  return getServiceById(id, establishmentId);
+}
+
+export async function softDeleteService(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(services)
+    .set({
+      deletedAt: new Date(),
+      isActive: false,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(services.id, id),
+        eq(services.establishmentId, establishmentId),
+        isNull(services.deletedAt)
+      )
+    );
+
+  return { success: true };
+}
+
+export async function countServicesByEstablishment(establishmentId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(services)
+    .where(
+      and(
+        eq(services.establishmentId, establishmentId),
+        isNull(services.deletedAt)
+      )
+    );
+
+  return Number(result[0]?.count ?? 0);
+}
+
+// ============================================================
+// PROFESSIONAL_SERVICES QUERIES (N:N link)
+// ============================================================
+
+export async function getProfessionalServiceLinks(
+  professionalId: number,
+  establishmentId: number
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Join to get service details along with custom overrides
+  const result = await db
+    .select({
+      linkId: professionalServices.id,
+      professionalId: professionalServices.professionalId,
+      serviceId: professionalServices.serviceId,
+      customPrice: professionalServices.customPrice,
+      customDurationMinutes: professionalServices.customDurationMinutes,
+      isActive: professionalServices.isActive,
+      serviceName: services.name,
+      servicePrice: services.price,
+      serviceDurationMinutes: services.durationMinutes,
+      serviceIsActive: services.isActive,
+    })
+    .from(professionalServices)
+    .innerJoin(services, eq(professionalServices.serviceId, services.id))
+    .where(
+      and(
+        eq(professionalServices.professionalId, professionalId),
+        eq(services.establishmentId, establishmentId),
+        isNull(services.deletedAt)
+      )
+    )
+    .orderBy(asc(services.name));
+
+  return result;
+}
+
+export async function getServiceProfessionalLinks(
+  serviceId: number,
+  establishmentId: number
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select({
+      linkId: professionalServices.id,
+      professionalId: professionalServices.professionalId,
+      serviceId: professionalServices.serviceId,
+      customPrice: professionalServices.customPrice,
+      customDurationMinutes: professionalServices.customDurationMinutes,
+      isActive: professionalServices.isActive,
+      professionalName: professionals.name,
+      professionalIsActive: professionals.isActive,
+    })
+    .from(professionalServices)
+    .innerJoin(
+      professionals,
+      eq(professionalServices.professionalId, professionals.id)
+    )
+    .where(
+      and(
+        eq(professionalServices.serviceId, serviceId),
+        eq(professionals.establishmentId, establishmentId),
+        isNull(professionals.deletedAt)
+      )
+    )
+    .orderBy(asc(professionals.name));
+
+  return result;
+}
+
+export async function upsertProfessionalService(data: {
+  professionalId: number;
+  serviceId: number;
+  customPrice?: string | null;
+  customDurationMinutes?: number | null;
+  isActive?: boolean;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Use INSERT ... ON DUPLICATE KEY UPDATE for upsert
+  await db
+    .insert(professionalServices)
+    .values({
+      professionalId: data.professionalId,
+      serviceId: data.serviceId,
+      customPrice: data.customPrice ?? null,
+      customDurationMinutes: data.customDurationMinutes ?? null,
+      isActive: data.isActive ?? true,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        customPrice: data.customPrice ?? null,
+        customDurationMinutes: data.customDurationMinutes ?? null,
+        isActive: data.isActive ?? true,
+      },
+    });
+
+  return { success: true };
+}
+
+export async function removeProfessionalService(
+  professionalId: number,
+  serviceId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .delete(professionalServices)
+    .where(
+      and(
+        eq(professionalServices.professionalId, professionalId),
+        eq(professionalServices.serviceId, serviceId)
+      )
+    );
+
+  return { success: true };
 }
