@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,9 +36,20 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 // ============================================================
-// WhatsApp Settings — Tela simplificada tipo Booksy
-// 4 estados: não conectado / conectando / conectado / erro
+// WhatsApp Settings — Embedded Signup (zero credenciais manuais)
+// Fluxo: clicar → popup Meta → autorizar → pronto
 // ============================================================
+
+// Declare Facebook SDK types
+declare global {
+  interface Window {
+    FB: {
+      init: (params: any) => void;
+      login: (callback: (response: any) => void, params: any) => void;
+    };
+    fbAsyncInit: () => void;
+  }
+}
 
 export default function WhatsAppSettings() {
   const { isAuthenticated } = useAuth();
@@ -51,12 +62,24 @@ export default function WhatsAppSettings() {
     { enabled: isAuthenticated, refetchInterval: 30000 }
   );
 
+  // Embedded Signup config query (only fetch when not connected)
+  const { data: signupConfig } = trpc.whatsapp.getEmbeddedSignupConfig.useQuery(
+    undefined,
+    {
+      enabled: isAuthenticated && status?.status !== "connected",
+      retry: false,
+    }
+  );
+
   // Mutations
-  const connectMutation = trpc.whatsapp.connect.useMutation({
+  const exchangeCodeMutation = trpc.whatsapp.exchangeCode.useMutation({
     onSuccess: (data) => {
-      toast.success("WhatsApp conectado com sucesso!");
-      setShowConnectDialog(false);
-      setConnectStep("idle");
+      toast.success("WhatsApp conectado com sucesso!", {
+        description: data.phoneNumber
+          ? `Número: ${data.phoneNumber}`
+          : "Integração ativada.",
+      });
+      setConnecting(false);
       // Show webhook info
       if (data.webhookVerifyToken) {
         setWebhookInfo({
@@ -68,8 +91,8 @@ export default function WhatsAppSettings() {
       utils.whatsapp.getConnectionStatus.invalidate();
     },
     onError: (err: any) => {
-      toast.error("Erro ao conectar", { description: err.message });
-      setConnectStep("idle");
+      toast.error("Erro ao conectar WhatsApp", { description: err.message });
+      setConnecting(false);
     },
   });
 
@@ -113,21 +136,38 @@ export default function WhatsAppSettings() {
     },
   });
 
-  // Dialog states
-  const [showConnectDialog, setShowConnectDialog] = useState(false);
+  // State
+  const [connecting, setConnecting] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [showWebhookDialog, setShowWebhookDialog] = useState(false);
-  const [connectStep, setConnectStep] = useState<"idle" | "credentials">("idle");
-
-  // Connect form state
-  const [accessToken, setAccessToken] = useState("");
-  const [phoneNumberId, setPhoneNumberId] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [businessAccountId, setBusinessAccountId] = useState("");
-
-  // Webhook info after connect
+  const [showManualDialog, setShowManualDialog] = useState(false);
   const [webhookInfo, setWebhookInfo] = useState<{ url: string; verifyToken: string } | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const sdkLoadedRef = useRef(false);
+
+  // Manual connect state (fallback)
+  const [manualToken, setManualToken] = useState("");
+  const [manualPhoneId, setManualPhoneId] = useState("");
+
+  const connectManualMutation = trpc.whatsapp.connect.useMutation({
+    onSuccess: (data) => {
+      toast.success("WhatsApp conectado com sucesso!");
+      setShowManualDialog(false);
+      setManualToken("");
+      setManualPhoneId("");
+      if (data.webhookVerifyToken) {
+        setWebhookInfo({
+          url: `${window.location.origin}${data.webhookUrl}`,
+          verifyToken: data.webhookVerifyToken,
+        });
+        setShowWebhookDialog(true);
+      }
+      utils.whatsapp.getConnectionStatus.invalidate();
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao conectar", { description: err.message });
+    },
+  });
 
   // Auto-reply state
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(status?.autoReplyEnabled ?? true);
@@ -146,17 +186,180 @@ export default function WhatsAppSettings() {
     prevAutoReply[1]({ enabled: status.autoReplyEnabled, message: status.autoReplyMessage });
   }
 
-  function handleConnect() {
-    if (!accessToken.trim() || !phoneNumberId.trim()) {
-      toast.error("Preencha o Token de Acesso e o Phone Number ID.");
+  // Load Facebook SDK
+  useEffect(() => {
+    if (sdkLoadedRef.current || !signupConfig?.appId) return;
+
+    const loadFBSDK = () => {
+      // Check if already loaded
+      if (document.getElementById("facebook-jssdk")) {
+        if (window.FB) {
+          window.FB.init({
+            appId: signupConfig.appId,
+            cookie: true,
+            xfbml: true,
+            version: signupConfig.sdkVersion,
+          });
+          sdkLoadedRef.current = true;
+        }
+        return;
+      }
+
+      window.fbAsyncInit = function () {
+        window.FB.init({
+          appId: signupConfig.appId,
+          cookie: true,
+          xfbml: true,
+          version: signupConfig.sdkVersion,
+        });
+        sdkLoadedRef.current = true;
+      };
+
+      const script = document.createElement("script");
+      script.id = "facebook-jssdk";
+      script.src = "https://connect.facebook.net/en_US/sdk.js";
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    };
+
+    loadFBSDK();
+  }, [signupConfig?.appId, signupConfig?.sdkVersion]);
+
+  // Handle Embedded Signup message event
+  const handleEmbeddedMessage = useCallback(
+    (event: MessageEvent) => {
+      if (
+        event.origin !== "https://www.facebook.com" &&
+        event.origin !== "https://web.facebook.com"
+      )
+        return;
+
+      try {
+        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+
+        if (data.type === "WA_EMBEDDED_SIGNUP") {
+          if (data.event === "FINISH") {
+            // Success — we'll get the code from FB.login callback
+            console.log("[Embedded Signup] FINISH event:", data.data);
+          } else if (data.event === "CANCEL") {
+            toast.info("Conexão cancelada pelo usuário.");
+            setConnecting(false);
+          } else if (data.event === "ERROR") {
+            toast.error("Erro no processo de conexão", {
+              description: "Tente novamente ou use a conexão manual.",
+            });
+            setConnecting(false);
+          }
+        }
+      } catch {
+        // Ignore non-JSON messages
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    window.addEventListener("message", handleEmbeddedMessage);
+    return () => window.removeEventListener("message", handleEmbeddedMessage);
+  }, [handleEmbeddedMessage]);
+
+  // Start Embedded Signup flow
+  function startEmbeddedSignup() {
+    if (!signupConfig?.appId || !signupConfig?.configId) {
+      toast.error("Configuração do Embedded Signup não disponível.", {
+        description: "Entre em contato com o suporte.",
+      });
       return;
     }
-    connectMutation.mutate({
-      accessToken: accessToken.trim(),
-      phoneNumberId: phoneNumberId.trim(),
-      phoneNumber: phoneNumber.trim() || undefined,
-      businessAccountId: businessAccountId.trim() || undefined,
-    });
+
+    if (!window.FB) {
+      toast.error("Facebook SDK não carregou.", {
+        description: "Verifique sua conexão e tente novamente.",
+      });
+      return;
+    }
+
+    setConnecting(true);
+
+    // Listen for the message event with phone_number_id and waba_id
+    const messageHandler = (event: MessageEvent) => {
+      if (
+        event.origin !== "https://www.facebook.com" &&
+        event.origin !== "https://web.facebook.com"
+      )
+        return;
+
+      try {
+        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+
+        if (data.type === "WA_EMBEDDED_SIGNUP" && data.event === "FINISH" && data.data) {
+          // Store the phone_number_id and waba_id for the code exchange
+          sessionStorage.setItem(
+            "wa_embedded_data",
+            JSON.stringify({
+              phoneNumberId: data.data.phone_number_id,
+              wabaId: data.data.waba_id,
+            })
+          );
+          window.removeEventListener("message", messageHandler);
+        }
+      } catch {
+        // Ignore
+      }
+    };
+    window.addEventListener("message", messageHandler);
+
+    window.FB.login(
+      (response: any) => {
+        if (response.authResponse?.code) {
+          // Get the stored phone_number_id and waba_id
+          const storedData = sessionStorage.getItem("wa_embedded_data");
+          let phoneNumberId = "";
+          let wabaId = "";
+
+          if (storedData) {
+            try {
+              const parsed = JSON.parse(storedData);
+              phoneNumberId = parsed.phoneNumberId || "";
+              wabaId = parsed.wabaId || "";
+            } catch {
+              // Ignore parse errors
+            }
+            sessionStorage.removeItem("wa_embedded_data");
+          }
+
+          if (!phoneNumberId || !wabaId) {
+            toast.error("Dados incompletos da Meta.", {
+              description: "O phone_number_id ou waba_id não foram recebidos. Tente novamente.",
+            });
+            setConnecting(false);
+            return;
+          }
+
+          // Exchange the code for an access token on the backend
+          exchangeCodeMutation.mutate({
+            code: response.authResponse.code,
+            phoneNumberId,
+            wabaId,
+          });
+        } else {
+          toast.info("Conexão cancelada.");
+          setConnecting(false);
+        }
+        window.removeEventListener("message", messageHandler);
+      },
+      {
+        config_id: signupConfig.configId,
+        response_type: "code",
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: "",
+          sessionInfoVersion: "3",
+        },
+      }
+    );
   }
 
   function handleSaveAutoReply() {
@@ -187,6 +390,7 @@ export default function WhatsAppSettings() {
   const connectionStatus = status?.status ?? "not_connected";
   const isConnected = connectionStatus === "connected";
   const hasError = connectionStatus === "error";
+  const hasEmbeddedSignup = !!(signupConfig?.appId && signupConfig?.configId);
 
   return (
     <DashboardLayout>
@@ -232,21 +436,42 @@ export default function WhatsAppSettings() {
                   Conecte seu número do WhatsApp Business para começar a receber mensagens dos seus clientes.
                 </p>
               </div>
+
+              {/* Primary: Embedded Signup button */}
               <Button
                 size="lg"
                 className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => {
-                  setShowConnectDialog(true);
-                  setConnectStep("credentials");
-                  setAccessToken("");
-                  setPhoneNumberId("");
-                  setPhoneNumber("");
-                  setBusinessAccountId("");
-                }}
+                onClick={startEmbeddedSignup}
+                disabled={connecting || !hasEmbeddedSignup}
               >
-                <Zap className="w-4 h-4 mr-2" />
-                Conectar WhatsApp
+                {connecting ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="w-4 h-4 mr-2" />
+                )}
+                {connecting ? "Conectando..." : "Conectar WhatsApp"}
               </Button>
+
+              {!hasEmbeddedSignup && (
+                <p className="text-xs text-amber-600">
+                  <AlertTriangle className="w-3 h-3 inline mr-1" />
+                  Embedded Signup não configurado. Use a conexão manual abaixo.
+                </p>
+              )}
+
+              {/* Secondary: Manual connection link */}
+              <div className="pt-2">
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+                  onClick={() => {
+                    setShowManualDialog(true);
+                    setManualToken("");
+                    setManualPhoneId("");
+                  }}
+                >
+                  Conexão manual (avançado)
+                </button>
+              </div>
             </div>
           )}
 
@@ -299,22 +524,20 @@ export default function WhatsAppSettings() {
                 </div>
               </div>
 
-              {/* Stats */}
+              {/* Quick stats */}
               <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="rounded-lg bg-white/60 border p-3">
+                  <p className="text-xs text-muted-foreground">Conversas</p>
+                  <p className="text-lg font-semibold">{status?.conversationCount ?? 0}</p>
+                </div>
                 <div
-                  className="bg-white/80 rounded-lg p-3 border border-green-200 cursor-pointer hover:bg-white transition-colors"
+                  className="rounded-lg bg-white/60 border p-3 cursor-pointer hover:bg-white/80 transition-colors"
                   onClick={() => navigate("/dashboard/whatsapp/conversations")}
                 >
-                  <p className="text-2xl font-bold text-green-800">
-                    {status?.conversationCount ?? 0}
+                  <p className="text-xs text-muted-foreground">Ver conversas</p>
+                  <p className="text-sm font-medium text-primary flex items-center gap-1">
+                    Abrir <ExternalLink className="w-3 h-3" />
                   </p>
-                  <p className="text-xs text-green-600">Conversas</p>
-                </div>
-                <div className="bg-white/80 rounded-lg p-3 border border-green-200">
-                  <p className="text-2xl font-bold text-green-800">
-                    {status?.autoReplyEnabled ? "Ativa" : "Inativa"}
-                  </p>
-                  <p className="text-xs text-green-600">Resposta automática</p>
                 </div>
               </div>
             </div>
@@ -324,35 +547,32 @@ export default function WhatsAppSettings() {
           {hasError && (
             <div className="text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
-                <AlertTriangle className="w-8 h-8 text-red-500" />
+                <XCircle className="w-8 h-8 text-red-500" />
               </div>
               <div>
-                <h2 className="font-heading text-lg font-semibold text-red-800">
+                <h2 className="font-heading text-lg font-semibold text-red-700">
                   Erro na conexão
                 </h2>
                 <p className="text-sm text-red-600 mt-1">
-                  A integração está ativada mas as credenciais estão incompletas ou inválidas.
-                  Reconecte para corrigir.
+                  A integração está ativa mas as credenciais estão incompletas. Reconecte o WhatsApp.
                 </p>
               </div>
-              <div className="flex items-center gap-2 justify-center">
+              <div className="flex gap-2 justify-center">
                 <Button
                   className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => {
-                    setShowConnectDialog(true);
-                    setConnectStep("credentials");
-                    setAccessToken("");
-                    setPhoneNumberId("");
-                    setPhoneNumber("");
-                    setBusinessAccountId("");
-                  }}
+                  onClick={startEmbeddedSignup}
+                  disabled={connecting || !hasEmbeddedSignup}
                 >
-                  <Zap className="w-4 h-4 mr-2" />
+                  {connecting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4 mr-2" />
+                  )}
                   Reconectar
                 </Button>
                 <Button
                   variant="outline"
-                  className="text-red-600 hover:text-red-700"
+                  className="text-red-600"
                   onClick={() => setShowDisconnectDialog(true)}
                 >
                   <Unplug className="w-4 h-4 mr-2" />
@@ -364,208 +584,131 @@ export default function WhatsAppSettings() {
         </div>
 
         {/* ============================================================ */}
-        {/* AUTO-REPLY SETTINGS (visible when connected) */}
+        {/* AUTO-REPLY SECTION (only when connected) */}
         {/* ============================================================ */}
         {isConnected && (
-          <div className="bg-card rounded-xl border border-border/50 p-6 space-y-5">
+          <div className="rounded-xl border p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                <h2 className="font-heading text-base font-semibold text-foreground">
-                  Resposta Automática
-                </h2>
+              <div>
+                <h3 className="font-heading font-semibold text-foreground">
+                  Resposta automática
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Envie uma mensagem automática quando um novo cliente entrar em contato
+                </p>
               </div>
               <Switch
                 checked={autoReplyEnabled}
-                onCheckedChange={(v) => {
-                  setAutoReplyEnabled(v);
+                onCheckedChange={(checked) => {
+                  setAutoReplyEnabled(checked);
                   setAutoReplyDirty(true);
                 }}
               />
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              Quando ativada, uma mensagem de boas-vindas é enviada automaticamente na primeira mensagem de cada nova conversa.
-            </p>
-
             {autoReplyEnabled && (
               <div className="space-y-2">
-                <Label>Mensagem de boas-vindas</Label>
+                <Label className="text-sm">Mensagem</Label>
                 <Textarea
-                  placeholder="Olá! Você entrou em contato com nosso estabelecimento. Em breve atenderemos você. Sua mensagem foi recebida! 😊"
+                  placeholder="Olá! Obrigado por entrar em contato. Em breve retornaremos sua mensagem."
                   value={autoReplyMessage}
                   onChange={(e) => {
                     setAutoReplyMessage(e.target.value);
                     setAutoReplyDirty(true);
                   }}
                   rows={3}
+                  maxLength={1000}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Deixe em branco para usar a mensagem padrão.
+                <p className="text-xs text-muted-foreground text-right">
+                  {autoReplyMessage.length}/1000
                 </p>
               </div>
             )}
 
             {autoReplyDirty && (
-              <div className="flex justify-end">
-                <Button
-                  onClick={handleSaveAutoReply}
-                  disabled={autoReplyMutation.isPending}
-                  size="sm"
-                >
-                  {autoReplyMutation.isPending && (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  )}
-                  Salvar
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                onClick={handleSaveAutoReply}
+                disabled={autoReplyMutation.isPending}
+              >
+                {autoReplyMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4 mr-2" />
+                )}
+                Salvar
+              </Button>
             )}
           </div>
         )}
 
         {/* ============================================================ */}
-        {/* QUICK ACTIONS (visible when connected) */}
+        {/* MANUAL CONNECT DIALOG (fallback for advanced users) */}
         {/* ============================================================ */}
-        {isConnected && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              className="flex items-center gap-3 p-4 rounded-xl border border-border/50 bg-card hover:bg-accent/50 transition-colors text-left"
-              onClick={() => navigate("/dashboard/whatsapp/conversations")}
-            >
-              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                <MessageSquare className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="font-medium text-sm text-foreground">Ver conversas</p>
-                <p className="text-xs text-muted-foreground">
-                  {(status?.conversationCount ?? 0) > 0
-                    ? `${status?.conversationCount} conversas registradas`
-                    : "Nenhuma conversa ainda"}
-                </p>
-              </div>
-            </button>
-
-            <button
-              className="flex items-center gap-3 p-4 rounded-xl border border-border/50 bg-card hover:bg-accent/50 transition-colors text-left"
-              onClick={() => {
-                setWebhookInfo({
-                  url: `${window.location.origin}/api/whatsapp/webhook`,
-                  verifyToken: "(salvo no servidor)",
-                });
-                setShowWebhookDialog(true);
-              }}
-            >
-              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
-                <Shield className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="font-medium text-sm text-foreground">Webhook URL</p>
-                <p className="text-xs text-muted-foreground">
-                  Ver URL do webhook para configurar no Meta
-                </p>
-              </div>
-            </button>
-          </div>
-        )}
-
-        {/* ============================================================ */}
-        {/* CONNECT DIALOG */}
-        {/* ============================================================ */}
-        <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
-          <DialogContent className="sm:max-w-lg">
+        <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-green-600" />
-                Conectar WhatsApp
+                <Shield className="w-5 h-5 text-amber-600" />
+                Conexão Manual (Avançado)
               </DialogTitle>
               <DialogDescription>
-                Insira as credenciais do seu WhatsApp Business. Você encontra esses dados no{" "}
-                <a
-                  href="https://developers.facebook.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline inline-flex items-center gap-0.5"
-                >
-                  Meta for Developers <ExternalLink className="w-3 h-3" />
-                </a>
+                Use esta opção apenas se o Embedded Signup não estiver disponível.
+                Você precisará obter as credenciais manualmente no Meta for Developers.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-2">
-              {/* Step indicator */}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="w-6 h-6 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-bold">1</div>
-                <span>Copie as credenciais do Meta Business</span>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  Token de Acesso <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="password"
+                  placeholder="EAAxxxxxxx..."
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">
+                  System User Token com permissão <code className="bg-muted px-1 rounded text-xs">whatsapp_business_messaging</code>
+                </p>
               </div>
 
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">
-                    Token de Acesso <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="password"
-                    placeholder="EAAxxxxxxx..."
-                    value={accessToken}
-                    onChange={(e) => setAccessToken(e.target.value)}
-                    autoFocus
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    System User Token com permissão <code className="bg-muted px-1 rounded text-xs">whatsapp_business_messaging</code>
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">
-                    Phone Number ID <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    placeholder="123456789012345"
-                    value={phoneNumberId}
-                    onChange={(e) => setPhoneNumberId(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    ID do número na seção WhatsApp do seu app Meta
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">
-                    Número do WhatsApp <span className="text-muted-foreground">(opcional)</span>
-                  </Label>
-                  <Input
-                    placeholder="5511999998888"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">
-                    Business Account ID <span className="text-muted-foreground">(opcional)</span>
-                  </Label>
-                  <Input
-                    placeholder="ID da conta comercial (WABA)"
-                    value={businessAccountId}
-                    onChange={(e) => setBusinessAccountId(e.target.value)}
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  Phone Number ID <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  placeholder="123456789012345"
+                  value={manualPhoneId}
+                  onChange={(e) => setManualPhoneId(e.target.value)}
+                />
               </div>
             </div>
 
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setShowConnectDialog(false)}
+                onClick={() => setShowManualDialog(false)}
               >
                 Cancelar
               </Button>
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={handleConnect}
-                disabled={connectMutation.isPending || !accessToken.trim() || !phoneNumberId.trim()}
+                onClick={() => {
+                  if (!manualToken.trim() || !manualPhoneId.trim()) {
+                    toast.error("Preencha o Token de Acesso e o Phone Number ID.");
+                    return;
+                  }
+                  connectManualMutation.mutate({
+                    accessToken: manualToken.trim(),
+                    phoneNumberId: manualPhoneId.trim(),
+                  });
+                }}
+                disabled={connectManualMutation.isPending || !manualToken.trim() || !manualPhoneId.trim()}
               >
-                {connectMutation.isPending ? (
+                {connectManualMutation.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Zap className="w-4 h-4 mr-2" />
@@ -615,7 +758,7 @@ export default function WhatsAppSettings() {
         </Dialog>
 
         {/* ============================================================ */}
-        {/* WEBHOOK INFO DIALOG */}
+        {/* WEBHOOK INFO DIALOG (shown after successful connection) */}
         {/* ============================================================ */}
         <Dialog open={showWebhookDialog} onOpenChange={setShowWebhookDialog}>
           <DialogContent className="sm:max-w-lg">

@@ -165,6 +165,17 @@
 
 ## ETAPA W — Simplificação Total da Ativação do WhatsApp
 - [x] W1 — Diagnóstico da UX atual (campos técnicos expostos ao usuário)
+
+## ETAPA W2 — Embedded Signup (eliminar credenciais manuais)
+- [x] W2.1 — Backend: endpoint whatsapp.getEmbeddedSignupConfig (retorna appId, configId, sdkVersion)
+- [x] W2.2 — Backend: endpoint whatsapp.exchangeCode (code → access_token via Meta Graph API)
+- [x] W2.3 — Backend: lógica integrada em exchangeCode (code exchange + fetch phone + save credentials)
+- [x] W2.4 — Frontend: substituir dialog de credenciais por popup Meta Embedded Signup
+- [x] W2.5 — Frontend: eliminar campos de credenciais (botão único + fallback manual avançado)
+- [x] W2.6 — Frontend: fluxo clicar → popup Meta → autorizar → pronto
+- [x] W2.7 — Segurança: META_APP_SECRET nunca exposto (só server-side em exchangeCode)
+- [x] W2.8 — Testes vitest para Embedded Signup — 9 novos testes, 279 total passando
+- [x] W2.9 — Validação final e checkpoint
 - [x] W2 — Nova arquitetura: fluxo de conexão simplificado (Embedded Signup ready)
 - [x] W2 — Backend: endpoints connect, disconnect, testConnection, getConnectionStatus, updateAutoReply, adminUpdateSettings
 - [x] W2 — Backend: testConnection valida token via Meta API GET /v21.0/{phoneNumberId}

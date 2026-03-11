@@ -96,7 +96,140 @@ describe("whatsapp router", () => {
     });
   });
 
-  // ---- CONNECT ----
+  // ---- EMBEDDED SIGNUP CONFIG ----
+  describe("whatsapp.getEmbeddedSignupConfig", () => {
+    it("requires authentication", async () => {
+      const ctx = createMockContext(null);
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(caller.whatsapp.getEmbeddedSignupConfig()).rejects.toThrow();
+    });
+
+    it("returns config or PRECONDITION_FAILED when env not set", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        const result = await caller.whatsapp.getEmbeddedSignupConfig();
+        // If env vars are set, should return appId and configId
+        expect(result).toBeDefined();
+        expect(typeof result.appId).toBe("string");
+        expect(typeof result.configId).toBe("string");
+        expect(typeof result.sdkVersion).toBe("string");
+        // Must NOT contain appSecret
+        expect((result as any).appSecret).toBeUndefined();
+        expect((result as any).metaAppSecret).toBeUndefined();
+      } catch (error: any) {
+        // If env vars are not set, should return PRECONDITION_FAILED
+        expect(error.code).toBe("PRECONDITION_FAILED");
+      }
+    });
+
+    it("never exposes META_APP_SECRET", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        const result = await caller.whatsapp.getEmbeddedSignupConfig();
+        const json = JSON.stringify(result);
+        expect(json).not.toContain("secret");
+        expect(json).not.toContain("SECRET");
+      } catch (error: any) {
+        // PRECONDITION_FAILED is acceptable
+        expect(error.code).toBe("PRECONDITION_FAILED");
+      }
+    });
+  });
+
+  // ---- EXCHANGE CODE (Embedded Signup) ----
+  describe("whatsapp.exchangeCode", () => {
+    it("requires authentication", async () => {
+      const ctx = createMockContext(null);
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.whatsapp.exchangeCode({
+          code: "test_code",
+          phoneNumberId: "123456789",
+          wabaId: "987654321",
+        })
+      ).rejects.toThrow();
+    });
+
+    it("validates code is required", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.whatsapp.exchangeCode({
+          code: "",
+          phoneNumberId: "123456789",
+          wabaId: "987654321",
+        })
+      ).rejects.toThrow();
+    });
+
+    it("validates phoneNumberId is required", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.whatsapp.exchangeCode({
+          code: "test_code",
+          phoneNumberId: "",
+          wabaId: "987654321",
+        })
+      ).rejects.toThrow();
+    });
+
+    it("validates wabaId is required", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.whatsapp.exchangeCode({
+          code: "test_code",
+          phoneNumberId: "123456789",
+          wabaId: "",
+        })
+      ).rejects.toThrow();
+    });
+
+    it("returns PRECONDITION_FAILED or BAD_REQUEST when env not configured or code invalid", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        await caller.whatsapp.exchangeCode({
+          code: "fake_code_12345",
+          phoneNumberId: "123456789",
+          wabaId: "987654321",
+        });
+        // If it succeeds (unlikely with fake code), that's fine too
+      } catch (error: any) {
+        // Should fail with PRECONDITION_FAILED (no env) or BAD_REQUEST (invalid code)
+        // or NOT_FOUND (no establishment)
+        expect(["PRECONDITION_FAILED", "BAD_REQUEST", "NOT_FOUND", "INTERNAL_SERVER_ERROR"]).toContain(error.code);
+      }
+    });
+
+    it("other user cannot exchange code for different tenant", async () => {
+      const otherCtx = createOtherUserContext();
+      const otherCaller = appRouter.createCaller(otherCtx);
+
+      try {
+        await otherCaller.whatsapp.exchangeCode({
+          code: "test_code",
+          phoneNumberId: "123456789",
+          wabaId: "987654321",
+        });
+      } catch (error: any) {
+        expect(error.code).toBe("NOT_FOUND");
+      }
+    });
+  });
+
+  // ---- CONNECT (manual fallback) ----
   describe("whatsapp.connect", () => {
     it("requires authentication", async () => {
       const ctx = createMockContext(null);

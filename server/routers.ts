@@ -68,6 +68,7 @@ import {
   closeConversation,
 } from "./whatsappDb";
 import { sendWhatsappMessage } from "./whatsappWebhook";
+import { ENV } from "./_core/env";
 
 // ============================================================
 // HELPER: resolve tenant (establishment) for current user
@@ -1530,8 +1531,129 @@ export const appRouter = router({
     }),
 
     /**
-     * Connect WhatsApp — receives credentials from Embedded Signup callback
-     * or admin setup flow. Saves all credentials securely and enables integration.
+     * Get Embedded Signup configuration for the frontend.
+     * Returns META_APP_ID and META_CONFIG_ID (safe to expose).
+     * NEVER returns META_APP_SECRET.
+     */
+    getEmbeddedSignupConfig: protectedProcedure.query(async () => {
+      const appId = ENV.metaAppId;
+      const configId = ENV.metaConfigId;
+
+      if (!appId || !configId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Embedded Signup não configurado. Entre em contato com o suporte.",
+        });
+      }
+
+      return {
+        appId,
+        configId,
+        sdkVersion: "v21.0",
+      };
+    }),
+
+    /**
+     * Exchange the authorization code from Embedded Signup for a permanent access token.
+     * This is the core of the Embedded Signup flow:
+     * 1. Frontend opens Meta popup → user authorizes
+     * 2. Frontend receives code + phone_number_id + waba_id
+     * 3. Frontend sends them here
+     * 4. Backend exchanges code for access_token (server-to-server, using APP_SECRET)
+     * 5. Backend saves credentials and enables integration
+     */
+    exchangeCode: protectedProcedure
+      .input(
+        z.object({
+          code: z.string().min(1, "Código de autorização é obrigatório"),
+          phoneNumberId: z.string().min(1, "Phone Number ID é obrigatório"),
+          wabaId: z.string().min(1, "WABA ID é obrigatório"),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // Validate META_APP_SECRET is configured
+        if (!ENV.metaAppId || !ENV.metaAppSecret) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Credenciais da plataforma não configuradas. Entre em contato com o suporte.",
+          });
+        }
+
+        // Exchange code for access_token via Meta Graph API (server-to-server)
+        let accessToken: string;
+        try {
+          const exchangeUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
+          exchangeUrl.searchParams.set("client_id", ENV.metaAppId);
+          exchangeUrl.searchParams.set("client_secret", ENV.metaAppSecret);
+          exchangeUrl.searchParams.set("code", input.code);
+
+          const response = await fetch(exchangeUrl.toString());
+          const data = await response.json() as any;
+
+          if (!response.ok || !data.access_token) {
+            const errorMsg = data?.error?.message ?? "Falha ao trocar código por token";
+            console.error("[WhatsApp Embedded Signup] Code exchange failed:", data);
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Erro na autorização: ${errorMsg}`,
+            });
+          }
+
+          accessToken = data.access_token;
+        } catch (error: any) {
+          if (error instanceof TRPCError) throw error;
+          console.error("[WhatsApp Embedded Signup] Network error:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Erro de rede ao conectar com a Meta. Tente novamente.",
+          });
+        }
+
+        // Fetch phone number details from Meta API to get display number
+        let phoneNumber: string | null = null;
+        try {
+          const phoneRes = await fetch(
+            `https://graph.facebook.com/v21.0/${input.phoneNumberId}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (phoneRes.ok) {
+            const phoneData = await phoneRes.json() as any;
+            phoneNumber = phoneData.display_phone_number ?? null;
+          }
+        } catch {
+          // Non-critical — we can proceed without the display number
+        }
+
+        // Generate secure webhook verify token
+        const verifyToken = `prontei_${establishment.id}_${Date.now()}`;
+
+        // Save credentials and enable integration
+        await upsertWhatsappSettings({
+          establishmentId: establishment.id,
+          isEnabled: true,
+          provider: "meta",
+          accessToken,
+          phoneNumberId: input.phoneNumberId,
+          phoneNumber,
+          businessAccountId: input.wabaId,
+          webhookVerifyToken: verifyToken,
+        });
+
+        console.log(`[WhatsApp Embedded Signup] Conexão estabelecida para establishment ${establishment.id}`);
+
+        return {
+          success: true,
+          phoneNumber,
+          webhookUrl: `/api/whatsapp/webhook`,
+          webhookVerifyToken: verifyToken,
+        };
+      }),
+
+    /**
+     * Connect WhatsApp — manual fallback for admin setup.
+     * Kept for backward compatibility. Prefer exchangeCode for Embedded Signup.
      */
     connect: protectedProcedure
       .input(
