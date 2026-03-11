@@ -1,88 +1,179 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Loader2, MessageSquare, Settings, CheckCircle2, XCircle, Info } from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Loader2,
+  MessageSquare,
+  Wifi,
+  WifiOff,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Phone,
+  Shield,
+  Zap,
+  ExternalLink,
+  RefreshCw,
+  Unplug,
+  Copy,
+  Check,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
+
+// ============================================================
+// WhatsApp Settings — Tela simplificada tipo Booksy
+// 4 estados: não conectado / conectando / conectado / erro
+// ============================================================
 
 export default function WhatsAppSettings() {
   const { isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
 
-  const { data: settings, isLoading } = trpc.whatsapp.getSettings.useQuery(
+  // Connection status query
+  const { data: status, isLoading } = trpc.whatsapp.getConnectionStatus.useQuery(
     undefined,
-    { enabled: isAuthenticated }
+    { enabled: isAuthenticated, refetchInterval: 30000 }
   );
 
-  const updateMutation = trpc.whatsapp.updateSettings.useMutation({
-    onSuccess: () => {
-      toast.success("Configurações salvas com sucesso!");
-      utils.whatsapp.getSettings.invalidate();
+  // Mutations
+  const connectMutation = trpc.whatsapp.connect.useMutation({
+    onSuccess: (data) => {
+      toast.success("WhatsApp conectado com sucesso!");
+      setShowConnectDialog(false);
+      setConnectStep("idle");
+      // Show webhook info
+      if (data.webhookVerifyToken) {
+        setWebhookInfo({
+          url: `${window.location.origin}${data.webhookUrl}`,
+          verifyToken: data.webhookVerifyToken,
+        });
+        setShowWebhookDialog(true);
+      }
+      utils.whatsapp.getConnectionStatus.invalidate();
     },
-    onError: (err) => {
-      toast.error("Erro ao salvar configurações", { description: err.message });
+    onError: (err: any) => {
+      toast.error("Erro ao conectar", { description: err.message });
+      setConnectStep("idle");
     },
   });
 
-  const utils = trpc.useUtils();
+  const disconnectMutation = trpc.whatsapp.disconnect.useMutation({
+    onSuccess: () => {
+      toast.success("WhatsApp desconectado.");
+      setShowDisconnectDialog(false);
+      utils.whatsapp.getConnectionStatus.invalidate();
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao desconectar", { description: err.message });
+    },
+  });
 
-  // Form state
-  const [isEnabled, setIsEnabled] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [provider, setProvider] = useState("meta");
+  const testMutation = trpc.whatsapp.testConnection.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success("Conexão validada!", {
+          description: result.verifiedName
+            ? `Nome verificado: ${result.verifiedName}`
+            : "Token e credenciais estão funcionando.",
+        });
+      } else {
+        toast.error("Falha na validação", {
+          description: result.error ?? "Verifique as credenciais.",
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao testar conexão", { description: err.message });
+    },
+  });
+
+  const autoReplyMutation = trpc.whatsapp.updateAutoReply.useMutation({
+    onSuccess: () => {
+      toast.success("Resposta automática atualizada!");
+      utils.whatsapp.getConnectionStatus.invalidate();
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao salvar", { description: err.message });
+    },
+  });
+
+  // Dialog states
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
+  const [showWebhookDialog, setShowWebhookDialog] = useState(false);
+  const [connectStep, setConnectStep] = useState<"idle" | "credentials">("idle");
+
+  // Connect form state
   const [accessToken, setAccessToken] = useState("");
-  const [webhookVerifyToken, setWebhookVerifyToken] = useState("");
   const [phoneNumberId, setPhoneNumberId] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [businessAccountId, setBusinessAccountId] = useState("");
-  const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
-  const [autoReplyMessage, setAutoReplyMessage] = useState("");
 
-  // Populate form when settings load
-  useEffect(() => {
-    if (settings) {
-      setIsEnabled(settings.isEnabled);
-      setPhoneNumber(settings.phoneNumber ?? "");
-      setProvider(settings.provider);
-      setAccessToken(""); // Don't show masked token
-      setWebhookVerifyToken(settings.webhookVerifyToken ?? "");
-      setPhoneNumberId(settings.phoneNumberId ?? "");
-      setBusinessAccountId(settings.businessAccountId ?? "");
-      setAutoReplyEnabled(settings.autoReplyEnabled);
-      setAutoReplyMessage(settings.autoReplyMessage ?? "");
-    }
-  }, [settings]);
+  // Webhook info after connect
+  const [webhookInfo, setWebhookInfo] = useState<{ url: string; verifyToken: string } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  function handleSave() {
-    const data: Record<string, unknown> = {
-      isEnabled,
-      phoneNumber: phoneNumber || null,
-      provider,
-      webhookVerifyToken: webhookVerifyToken || null,
-      phoneNumberId: phoneNumberId || null,
-      businessAccountId: businessAccountId || null,
-      autoReplyEnabled,
-      autoReplyMessage: autoReplyMessage || null,
-    };
+  // Auto-reply state
+  const [autoReplyEnabled, setAutoReplyEnabled] = useState(status?.autoReplyEnabled ?? true);
+  const [autoReplyMessage, setAutoReplyMessage] = useState(status?.autoReplyMessage ?? "");
+  const [autoReplyDirty, setAutoReplyDirty] = useState(false);
 
-    // Only send accessToken if user typed a new one
-    if (accessToken.trim()) {
-      data.accessToken = accessToken;
-    }
-
-    updateMutation.mutate(data as any);
+  // Update auto-reply state when status loads
+  const prevAutoReply = useState({ enabled: status?.autoReplyEnabled, message: status?.autoReplyMessage });
+  if (
+    status &&
+    !autoReplyDirty &&
+    (prevAutoReply[0].enabled !== status.autoReplyEnabled || prevAutoReply[0].message !== status.autoReplyMessage)
+  ) {
+    setAutoReplyEnabled(status.autoReplyEnabled);
+    setAutoReplyMessage(status.autoReplyMessage ?? "");
+    prevAutoReply[1]({ enabled: status.autoReplyEnabled, message: status.autoReplyMessage });
   }
 
+  function handleConnect() {
+    if (!accessToken.trim() || !phoneNumberId.trim()) {
+      toast.error("Preencha o Token de Acesso e o Phone Number ID.");
+      return;
+    }
+    connectMutation.mutate({
+      accessToken: accessToken.trim(),
+      phoneNumberId: phoneNumberId.trim(),
+      phoneNumber: phoneNumber.trim() || undefined,
+      businessAccountId: businessAccountId.trim() || undefined,
+    });
+  }
+
+  function handleSaveAutoReply() {
+    autoReplyMutation.mutate({
+      autoReplyEnabled,
+      autoReplyMessage: autoReplyMessage.trim() || null,
+    });
+    setAutoReplyDirty(false);
+  }
+
+  function copyToClipboard(text: string, field: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  }
+
+  // Loading state
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -92,6 +183,10 @@ export default function WhatsAppSettings() {
       </DashboardLayout>
     );
   }
+
+  const connectionStatus = status?.status ?? "not_connected";
+  const isConnected = connectionStatus === "connected";
+  const hasError = connectionStatus === "error";
 
   return (
     <DashboardLayout>
@@ -106,195 +201,497 @@ export default function WhatsAppSettings() {
               WhatsApp
             </h1>
             <p className="text-sm text-muted-foreground">
-              Configure a integração com WhatsApp do seu estabelecimento
+              Conecte seu WhatsApp Business para receber e responder mensagens
             </p>
           </div>
         </div>
 
-        {/* Status Banner */}
+        {/* ============================================================ */}
+        {/* CONNECTION STATUS CARD */}
+        {/* ============================================================ */}
         <div
-          className={`flex items-center gap-3 p-4 rounded-lg border ${
-            isEnabled
-              ? "bg-green-50 border-green-200 text-green-800"
-              : "bg-muted/50 border-border text-muted-foreground"
+          className={`rounded-xl border-2 p-6 transition-all ${
+            isConnected
+              ? "border-green-300 bg-green-50/50"
+              : hasError
+              ? "border-red-300 bg-red-50/50"
+              : "border-dashed border-muted-foreground/30 bg-muted/20"
           }`}
         >
-          {isEnabled ? (
-            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-          ) : (
-            <XCircle className="w-5 h-5 text-muted-foreground shrink-0" />
+          {/* Status: NOT CONNECTED */}
+          {!isConnected && !hasError && (
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto">
+                <WifiOff className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <div>
+                <h2 className="font-heading text-lg font-semibold text-foreground">
+                  WhatsApp não conectado
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Conecte seu número do WhatsApp Business para começar a receber mensagens dos seus clientes.
+                </p>
+              </div>
+              <Button
+                size="lg"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => {
+                  setShowConnectDialog(true);
+                  setConnectStep("credentials");
+                  setAccessToken("");
+                  setPhoneNumberId("");
+                  setPhoneNumber("");
+                  setBusinessAccountId("");
+                }}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Conectar WhatsApp
+              </Button>
+            </div>
           )}
-          <div className="flex-1">
-            <p className="font-medium text-sm">
-              {isEnabled ? "Integração ativa" : "Integração desativada"}
-            </p>
-            <p className="text-xs opacity-80">
-              {isEnabled
-                ? "O WhatsApp está configurado para receber mensagens."
-                : "Ative a integração para começar a receber mensagens."}
-            </p>
-          </div>
-          <Switch
-            checked={isEnabled}
-            onCheckedChange={setIsEnabled}
-          />
+
+          {/* Status: CONNECTED */}
+          {isConnected && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                    <Wifi className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-heading text-lg font-semibold text-green-800">
+                        Conectado
+                      </h2>
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    </div>
+                    {status?.phoneNumber && (
+                      <p className="text-sm text-green-700 flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        {status.phoneNumber}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => testMutation.mutate()}
+                    disabled={testMutation.isPending}
+                  >
+                    {testMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    <span className="ml-1.5 hidden sm:inline">Testar</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => setShowDisconnectDialog(true)}
+                  >
+                    <Unplug className="w-4 h-4" />
+                    <span className="ml-1.5 hidden sm:inline">Desconectar</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div
+                  className="bg-white/80 rounded-lg p-3 border border-green-200 cursor-pointer hover:bg-white transition-colors"
+                  onClick={() => navigate("/dashboard/whatsapp/conversations")}
+                >
+                  <p className="text-2xl font-bold text-green-800">
+                    {status?.conversationCount ?? 0}
+                  </p>
+                  <p className="text-xs text-green-600">Conversas</p>
+                </div>
+                <div className="bg-white/80 rounded-lg p-3 border border-green-200">
+                  <p className="text-2xl font-bold text-green-800">
+                    {status?.autoReplyEnabled ? "Ativa" : "Inativa"}
+                  </p>
+                  <p className="text-xs text-green-600">Resposta automática</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Status: ERROR */}
+          {hasError && (
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-8 h-8 text-red-500" />
+              </div>
+              <div>
+                <h2 className="font-heading text-lg font-semibold text-red-800">
+                  Erro na conexão
+                </h2>
+                <p className="text-sm text-red-600 mt-1">
+                  A integração está ativada mas as credenciais estão incompletas ou inválidas.
+                  Reconecte para corrigir.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 justify-center">
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => {
+                    setShowConnectDialog(true);
+                    setConnectStep("credentials");
+                    setAccessToken("");
+                    setPhoneNumberId("");
+                    setPhoneNumber("");
+                    setBusinessAccountId("");
+                  }}
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  Reconectar
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700"
+                  onClick={() => setShowDisconnectDialog(true)}
+                >
+                  <Unplug className="w-4 h-4 mr-2" />
+                  Desconectar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Configuration Form */}
-        <div className="bg-card rounded-xl border border-border/50 p-6 space-y-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Settings className="w-4 h-4 text-muted-foreground" />
-            <h2 className="font-heading text-base font-semibold text-foreground">
-              Configurações do Provider
-            </h2>
-          </div>
-
-          <div className="grid gap-4">
-            {/* Provider */}
-            <div className="space-y-2">
-              <Label>Provedor</Label>
-              <Select value={provider} onValueChange={setProvider}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o provedor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="meta">Meta Cloud API (oficial)</SelectItem>
-                  <SelectItem value="z-api">Z-API</SelectItem>
-                  <SelectItem value="evolution">Evolution API</SelectItem>
-                  <SelectItem value="outro">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Phone Number */}
-            <div className="space-y-2">
-              <Label>Número do WhatsApp</Label>
-              <Input
-                placeholder="5511999998888"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
+        {/* ============================================================ */}
+        {/* AUTO-REPLY SETTINGS (visible when connected) */}
+        {/* ============================================================ */}
+        {isConnected && (
+          <div className="bg-card rounded-xl border border-border/50 p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                <h2 className="font-heading text-base font-semibold text-foreground">
+                  Resposta Automática
+                </h2>
+              </div>
+              <Switch
+                checked={autoReplyEnabled}
+                onCheckedChange={(v) => {
+                  setAutoReplyEnabled(v);
+                  setAutoReplyDirty(true);
+                }}
               />
-              <p className="text-xs text-muted-foreground">
-                Número completo com código do país (sem +)
-              </p>
             </div>
 
-            {/* Phone Number ID (Meta) */}
-            {provider === "meta" && (
-              <>
-                <div className="space-y-2">
-                  <Label>Phone Number ID</Label>
+            <p className="text-sm text-muted-foreground">
+              Quando ativada, uma mensagem de boas-vindas é enviada automaticamente na primeira mensagem de cada nova conversa.
+            </p>
+
+            {autoReplyEnabled && (
+              <div className="space-y-2">
+                <Label>Mensagem de boas-vindas</Label>
+                <Textarea
+                  placeholder="Olá! Você entrou em contato com nosso estabelecimento. Em breve atenderemos você. Sua mensagem foi recebida! 😊"
+                  value={autoReplyMessage}
+                  onChange={(e) => {
+                    setAutoReplyMessage(e.target.value);
+                    setAutoReplyDirty(true);
+                  }}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Deixe em branco para usar a mensagem padrão.
+                </p>
+              </div>
+            )}
+
+            {autoReplyDirty && (
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSaveAutoReply}
+                  disabled={autoReplyMutation.isPending}
+                  size="sm"
+                >
+                  {autoReplyMutation.isPending && (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  )}
+                  Salvar
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* QUICK ACTIONS (visible when connected) */}
+        {/* ============================================================ */}
+        {isConnected && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              className="flex items-center gap-3 p-4 rounded-xl border border-border/50 bg-card hover:bg-accent/50 transition-colors text-left"
+              onClick={() => navigate("/dashboard/whatsapp/conversations")}
+            >
+              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium text-sm text-foreground">Ver conversas</p>
+                <p className="text-xs text-muted-foreground">
+                  {(status?.conversationCount ?? 0) > 0
+                    ? `${status?.conversationCount} conversas registradas`
+                    : "Nenhuma conversa ainda"}
+                </p>
+              </div>
+            </button>
+
+            <button
+              className="flex items-center gap-3 p-4 rounded-xl border border-border/50 bg-card hover:bg-accent/50 transition-colors text-left"
+              onClick={() => {
+                setWebhookInfo({
+                  url: `${window.location.origin}/api/whatsapp/webhook`,
+                  verifyToken: "(salvo no servidor)",
+                });
+                setShowWebhookDialog(true);
+              }}
+            >
+              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+                <Shield className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="font-medium text-sm text-foreground">Webhook URL</p>
+                <p className="text-xs text-muted-foreground">
+                  Ver URL do webhook para configurar no Meta
+                </p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* CONNECT DIALOG */}
+        {/* ============================================================ */}
+        <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-green-600" />
+                Conectar WhatsApp
+              </DialogTitle>
+              <DialogDescription>
+                Insira as credenciais do seu WhatsApp Business. Você encontra esses dados no{" "}
+                <a
+                  href="https://developers.facebook.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline inline-flex items-center gap-0.5"
+                >
+                  Meta for Developers <ExternalLink className="w-3 h-3" />
+                </a>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Step indicator */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="w-6 h-6 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-bold">1</div>
+                <span>Copie as credenciais do Meta Business</span>
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">
+                    Token de Acesso <span className="text-red-500">*</span>
+                  </Label>
                   <Input
-                    placeholder="ID do número no Meta Business"
+                    type="password"
+                    placeholder="EAAxxxxxxx..."
+                    value={accessToken}
+                    onChange={(e) => setAccessToken(e.target.value)}
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    System User Token com permissão <code className="bg-muted px-1 rounded text-xs">whatsapp_business_messaging</code>
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">
+                    Phone Number ID <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    placeholder="123456789012345"
                     value={phoneNumberId}
                     onChange={(e) => setPhoneNumberId(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    ID do número na seção WhatsApp do seu app Meta
+                  </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Business Account ID (WABA)</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">
+                    Número do WhatsApp <span className="text-muted-foreground">(opcional)</span>
+                  </Label>
                   <Input
-                    placeholder="ID da conta comercial"
+                    placeholder="5511999998888"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">
+                    Business Account ID <span className="text-muted-foreground">(opcional)</span>
+                  </Label>
+                  <Input
+                    placeholder="ID da conta comercial (WABA)"
                     value={businessAccountId}
                     onChange={(e) => setBusinessAccountId(e.target.value)}
                   />
                 </div>
-              </>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowConnectDialog(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleConnect}
+                disabled={connectMutation.isPending || !accessToken.trim() || !phoneNumberId.trim()}
+              >
+                {connectMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="w-4 h-4 mr-2" />
+                )}
+                Conectar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ============================================================ */}
+        {/* DISCONNECT DIALOG */}
+        {/* ============================================================ */}
+        <Dialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <Unplug className="w-5 h-5" />
+                Desconectar WhatsApp
+              </DialogTitle>
+              <DialogDescription>
+                Tem certeza que deseja desconectar o WhatsApp? As credenciais serão removidas e você deixará de receber mensagens.
+                As conversas existentes serão mantidas.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowDisconnectDialog(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => disconnectMutation.mutate()}
+                disabled={disconnectMutation.isPending}
+              >
+                {disconnectMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Unplug className="w-4 h-4 mr-2" />
+                )}
+                Sim, desconectar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ============================================================ */}
+        {/* WEBHOOK INFO DIALOG */}
+        {/* ============================================================ */}
+        <Dialog open={showWebhookDialog} onOpenChange={setShowWebhookDialog}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-purple-600" />
+                Configuração do Webhook
+              </DialogTitle>
+              <DialogDescription>
+                Configure esses dados no Meta for Developers para receber mensagens do WhatsApp.
+              </DialogDescription>
+            </DialogHeader>
+
+            {webhookInfo && (
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Webhook URL</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={webhookInfo.url}
+                      className="font-mono text-xs bg-muted"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => copyToClipboard(webhookInfo.url, "url")}
+                    >
+                      {copiedField === "url" ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Token de Verificação</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={webhookInfo.verifyToken}
+                      className="font-mono text-xs bg-muted"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => copyToClipboard(webhookInfo.verifyToken, "token")}
+                    >
+                      {copiedField === "token" ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-xs text-blue-800">
+                    <strong>Como configurar:</strong> No Meta for Developers, vá em seu app → WhatsApp → Configuração → Webhook.
+                    Cole a URL acima no campo "Callback URL" e o token no campo "Verify Token".
+                    Assine os campos: <code className="bg-blue-100 px-1 rounded">messages</code>.
+                  </p>
+                </div>
+              </div>
             )}
 
-            {/* Access Token */}
-            <div className="space-y-2">
-              <Label>Token de Acesso</Label>
-              <Input
-                type="password"
-                placeholder={settings?.accessToken ? "••••••••" : "Cole o token aqui"}
-                value={accessToken}
-                onChange={(e) => setAccessToken(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                {settings?.accessToken
-                  ? "Token já configurado. Deixe em branco para manter o atual."
-                  : "Token de autenticação do provedor."}
-              </p>
-            </div>
-
-            {/* Webhook Verify Token */}
-            <div className="space-y-2">
-              <Label>Token de Verificação do Webhook</Label>
-              <Input
-                placeholder="Token para validação do webhook"
-                value={webhookVerifyToken}
-                onChange={(e) => setWebhookVerifyToken(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Auto Reply */}
-        <div className="bg-card rounded-xl border border-border/50 p-6 space-y-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-muted-foreground" />
-              <h2 className="font-heading text-base font-semibold text-foreground">
-                Resposta Automática
-              </h2>
-            </div>
-            <Switch
-              checked={autoReplyEnabled}
-              onCheckedChange={setAutoReplyEnabled}
-            />
-          </div>
-
-          {autoReplyEnabled && (
-            <div className="space-y-2">
-              <Label>Mensagem de boas-vindas</Label>
-              <Textarea
-                placeholder="Olá! Você entrou em contato com nosso estabelecimento. Em breve você poderá agendar por aqui. Sua mensagem foi recebida!"
-                value={autoReplyMessage}
-                onChange={(e) => setAutoReplyMessage(e.target.value)}
-                rows={3}
-              />
-              <p className="text-xs text-muted-foreground">
-                Enviada automaticamente na primeira mensagem de uma nova conversa.
-                Deixe em branco para usar a mensagem padrão.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start gap-2">
-            <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Como configurar</p>
-              <ol className="list-decimal list-inside space-y-1 text-xs">
-                <li>Crie um app no Meta for Developers e configure o WhatsApp Business</li>
-                <li>Copie o Phone Number ID, WABA ID e Access Token</li>
-                <li>Configure o webhook URL: <code className="bg-blue-100 px-1 rounded">{window.location.origin}/api/whatsapp/webhook</code></li>
-                <li>Use o Token de Verificação configurado acima</li>
-                <li>Ative a integração e salve</li>
-              </ol>
-              <p className="mt-2 text-xs opacity-80">
-                O envio de mensagens usa a Meta Cloud API v21.0. Preencha corretamente o Phone Number ID e o Access Token para que as respostas sejam enviadas ao WhatsApp real.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Save Button */}
-        <div className="flex justify-end">
-          <Button
-            onClick={handleSave}
-            disabled={updateMutation.isPending}
-            className="bg-primary hover:bg-terracotta-dark text-primary-foreground"
-          >
-            {updateMutation.isPending && (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            )}
-            Salvar configurações
-          </Button>
-        </div>
+            <DialogFooter>
+              <Button onClick={() => setShowWebhookDialog(false)}>
+                Entendi
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

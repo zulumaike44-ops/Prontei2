@@ -49,77 +49,190 @@ function createOtherUserContext(): TrpcContext {
 }
 
 // ============================================================
-// WHATSAPP SETTINGS TESTS
+// CONNECTION STATUS & FLOW TESTS
 // ============================================================
 
 describe("whatsapp router", () => {
-  // ---- SETTINGS ----
-  describe("whatsapp.getSettings", () => {
+  // ---- CONNECTION STATUS ----
+  describe("whatsapp.getConnectionStatus", () => {
     it("requires authentication", async () => {
       const ctx = createMockContext(null);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.whatsapp.getSettings()).rejects.toThrow();
+      await expect(caller.whatsapp.getConnectionStatus()).rejects.toThrow();
     });
 
-    it("returns null or settings when authenticated", async () => {
+    it("returns connection status when authenticated", async () => {
       const ctx = createAuthenticatedContext();
       const caller = appRouter.createCaller(ctx);
 
       try {
-        const result = await caller.whatsapp.getSettings();
-        // Should be null (no settings yet) or an object
-        expect(result === null || typeof result === "object").toBe(true);
+        const result = await caller.whatsapp.getConnectionStatus();
+        expect(result).toBeDefined();
+        expect(["not_connected", "connected", "error"]).toContain(result.status);
+        expect(typeof result.isEnabled).toBe("boolean");
+        expect(typeof result.autoReplyEnabled).toBe("boolean");
+        expect(typeof result.conversationCount).toBe("number");
+        // Sensitive fields must NOT be present
+        expect((result as any).accessToken).toBeUndefined();
+        expect((result as any).webhookVerifyToken).toBeUndefined();
       } catch (error: any) {
-        // NOT_FOUND for establishment is acceptable
+        expect(error.code).toBe("NOT_FOUND");
+      }
+    });
+
+    it("never exposes accessToken in response", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        const result = await caller.whatsapp.getConnectionStatus();
+        const json = JSON.stringify(result);
+        expect(json).not.toContain("accessToken");
+        expect(json).not.toContain("webhookVerifyToken");
+      } catch (error: any) {
         expect(error.code).toBe("NOT_FOUND");
       }
     });
   });
 
-  describe("whatsapp.updateSettings", () => {
+  // ---- CONNECT ----
+  describe("whatsapp.connect", () => {
     it("requires authentication", async () => {
       const ctx = createMockContext(null);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.whatsapp.updateSettings({ isEnabled: true })
+        caller.whatsapp.connect({
+          accessToken: "EAABx...",
+          phoneNumberId: "123456789",
+        })
       ).rejects.toThrow();
     });
 
-    it("creates or updates settings when authenticated", async () => {
+    it("validates accessToken is required", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.whatsapp.connect({
+          accessToken: "",
+          phoneNumberId: "123456789",
+        })
+      ).rejects.toThrow();
+    });
+
+    it("validates phoneNumberId is required", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.whatsapp.connect({
+          accessToken: "EAABx...",
+          phoneNumberId: "",
+        })
+      ).rejects.toThrow();
+    });
+
+    it("connects when valid credentials provided", async () => {
       const ctx = createAuthenticatedContext();
       const caller = appRouter.createCaller(ctx);
 
       try {
-        const result = await caller.whatsapp.updateSettings({
-          isEnabled: false,
+        const result = await caller.whatsapp.connect({
+          accessToken: "EAABx_test_token_12345",
+          phoneNumberId: "123456789012345",
           phoneNumber: "5511999998888",
-          provider: "meta",
+        });
+
+        expect(result).toBeDefined();
+        expect(result.success).toBe(true);
+        expect(result.webhookUrl).toContain("/api/whatsapp/webhook");
+        expect(typeof result.webhookVerifyToken).toBe("string");
+        expect(result.webhookVerifyToken!.length).toBeGreaterThan(0);
+      } catch (error: any) {
+        expect(error.code).toBe("NOT_FOUND");
+      }
+    });
+  });
+
+  // ---- DISCONNECT ----
+  describe("whatsapp.disconnect", () => {
+    it("requires authentication", async () => {
+      const ctx = createMockContext(null);
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(caller.whatsapp.disconnect()).rejects.toThrow();
+    });
+
+    it("disconnects when authenticated", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        const result = await caller.whatsapp.disconnect();
+        expect(result).toBeDefined();
+        expect(result.success).toBe(true);
+      } catch (error: any) {
+        expect(error.code).toBe("NOT_FOUND");
+      }
+    });
+  });
+
+  // ---- TEST CONNECTION ----
+  describe("whatsapp.testConnection", () => {
+    it("requires authentication", async () => {
+      const ctx = createMockContext(null);
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(caller.whatsapp.testConnection()).rejects.toThrow();
+    });
+
+    it("returns result when authenticated", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        const result = await caller.whatsapp.testConnection();
+        expect(result).toBeDefined();
+        expect(typeof result.success).toBe("boolean");
+        // If not connected, should return error
+        if (!result.success) {
+          expect(result.error).toBeDefined();
+        }
+      } catch (error: any) {
+        expect(["NOT_FOUND", "BAD_REQUEST"]).toContain(error.code);
+      }
+    });
+  });
+
+  // ---- UPDATE AUTO REPLY ----
+  describe("whatsapp.updateAutoReply", () => {
+    it("requires authentication", async () => {
+      const ctx = createMockContext(null);
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.whatsapp.updateAutoReply({ autoReplyEnabled: true })
+      ).rejects.toThrow();
+    });
+
+    it("updates auto reply settings", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        const result = await caller.whatsapp.updateAutoReply({
           autoReplyEnabled: true,
           autoReplyMessage: "Olá! Mensagem de teste.",
         });
 
         expect(result).toBeDefined();
-        if (result) {
-          expect(result.phoneNumber).toBe("5511999998888");
-          expect(result.provider).toBe("meta");
-          expect(result.autoReplyEnabled).toBe(true);
-        }
+        expect(result.success).toBe(true);
       } catch (error: any) {
+        // NOT_FOUND if user has no establishment
         expect(error.code).toBe("NOT_FOUND");
       }
-    });
-
-    it("validates provider max length", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      await expect(
-        caller.whatsapp.updateSettings({
-          provider: "a".repeat(51), // exceeds max 50
-        })
-      ).rejects.toThrow();
     });
 
     it("validates autoReplyMessage max length", async () => {
@@ -127,8 +240,9 @@ describe("whatsapp router", () => {
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.whatsapp.updateSettings({
-          autoReplyMessage: "a".repeat(1001), // exceeds max 1000
+        caller.whatsapp.updateAutoReply({
+          autoReplyEnabled: true,
+          autoReplyMessage: "a".repeat(1001),
         })
       ).rejects.toThrow();
     });
@@ -210,7 +324,6 @@ describe("whatsapp router", () => {
 
       try {
         await caller.whatsapp.getConversation({ id: 99999 });
-        // Should not reach here
         expect(true).toBe(false);
       } catch (error: any) {
         expect(["NOT_FOUND"]).toContain(error.code);
@@ -345,37 +458,48 @@ describe("whatsapp router", () => {
 
   // ---- MULTI-TENANT ISOLATION ----
   describe("multi-tenant isolation", () => {
+    it("other user cannot access connection status from different tenant", async () => {
+      const otherCtx = createOtherUserContext();
+      const otherCaller = appRouter.createCaller(otherCtx);
+
+      try {
+        await otherCaller.whatsapp.getConnectionStatus();
+      } catch (error: any) {
+        expect(error.code).toBe("NOT_FOUND");
+      }
+    });
+
+    it("other user cannot connect WhatsApp on different tenant", async () => {
+      const otherCtx = createOtherUserContext();
+      const otherCaller = appRouter.createCaller(otherCtx);
+
+      try {
+        await otherCaller.whatsapp.connect({
+          accessToken: "EAABx...",
+          phoneNumberId: "123456789",
+        });
+      } catch (error: any) {
+        expect(error.code).toBe("NOT_FOUND");
+      }
+    });
+
+    it("other user cannot disconnect WhatsApp on different tenant", async () => {
+      const otherCtx = createOtherUserContext();
+      const otherCaller = appRouter.createCaller(otherCtx);
+
+      try {
+        await otherCaller.whatsapp.disconnect();
+      } catch (error: any) {
+        expect(error.code).toBe("NOT_FOUND");
+      }
+    });
+
     it("other user cannot access conversations from different tenant", async () => {
       const otherCtx = createOtherUserContext();
       const otherCaller = appRouter.createCaller(otherCtx);
 
-      // Other user has no establishment, so should get NOT_FOUND
       try {
         await otherCaller.whatsapp.listConversations();
-        // If it returns, it should be empty (no data for this tenant)
-        // This is acceptable since the user has no establishment
-      } catch (error: any) {
-        expect(error.code).toBe("NOT_FOUND");
-      }
-    });
-
-    it("other user cannot access settings from different tenant", async () => {
-      const otherCtx = createOtherUserContext();
-      const otherCaller = appRouter.createCaller(otherCtx);
-
-      try {
-        await otherCaller.whatsapp.getSettings();
-      } catch (error: any) {
-        expect(error.code).toBe("NOT_FOUND");
-      }
-    });
-
-    it("other user cannot update settings of different tenant", async () => {
-      const otherCtx = createOtherUserContext();
-      const otherCaller = appRouter.createCaller(otherCtx);
-
-      try {
-        await otherCaller.whatsapp.updateSettings({ isEnabled: true });
       } catch (error: any) {
         expect(error.code).toBe("NOT_FOUND");
       }
@@ -531,7 +655,6 @@ describe("whatsapp webhook helpers", () => {
       );
 
       // With fake credentials, the API should return an error (not INVALID_CREDENTIALS)
-      // It should be a real API error or network error
       expect(result.success).toBe(false);
       expect(result.errorCode).not.toBe("INVALID_CREDENTIALS");
       expect(result.error).toBeDefined();

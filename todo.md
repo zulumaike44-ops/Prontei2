@@ -162,3 +162,19 @@
 - [x] 19.1E — Credenciais gerenciadas 100% pelo painel (whatsapp_settings no banco, sem env vars separadas)
 - [x] 19.1F — Atualizar testes vitest — 261 testes passando (9 novos: validateSendCredentials + sendWhatsappMessage real)
 - [x] 19.1G — Validação final, checkpoint e passo a passo de teste manual
+
+## ETAPA W — Simplificação Total da Ativação do WhatsApp
+- [x] W1 — Diagnóstico da UX atual (campos técnicos expostos ao usuário)
+- [x] W2 — Nova arquitetura: fluxo de conexão simplificado (Embedded Signup ready)
+- [x] W2 — Backend: endpoints connect, disconnect, testConnection, getConnectionStatus, updateAutoReply, adminUpdateSettings
+- [x] W2 — Backend: testConnection valida token via Meta API GET /v21.0/{phoneNumberId}
+- [x] W3 — Frontend: nova tela /dashboard/whatsapp com 4 estados (não conectado/conectando/conectado/erro)
+- [x] W3 — Frontend: esconder 100% dos campos técnicos do usuário final
+- [x] W3 — Frontend: botão "Conectar WhatsApp" com fluxo guiado (dialog)
+- [x] W3 — Frontend: botão "Testar conexão" no estado conectado
+- [x] W3 — Frontend: botão "Desconectar" no estado conectado
+- [x] W4 — Backend: captura automática de credenciais no callback (via connect mutation)
+- [x] W5 — Segurança: getConnectionStatus nunca expor token/phoneNumberId/webhookToken
+- [x] W5 — Segurança: getSettings removido, substituido por getConnectionStatus (sem dados sensíveis)
+- [x] W6 — Testes vitest (estados, ocultação, multi-tenant, teste de conexão) — 270 testes passando
+- [x] W7 — Validação final e checkpoint

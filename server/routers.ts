@@ -43,6 +43,7 @@ import {
   updateCustomer,
   deactivateCustomer,
   countCustomersByEstablishment,
+  getEstablishmentById,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import {
@@ -1479,22 +1480,198 @@ export const appRouter = router({
   // WHATSAPP (protected — tenant-scoped)
   // ============================================================
   whatsapp: router({
-    /** Get WhatsApp settings for current tenant */
-    getSettings: protectedProcedure.query(async ({ ctx }) => {
+    /**
+     * Get WhatsApp connection status for current tenant.
+     * NEVER exposes: accessToken, phoneNumberId, webhookVerifyToken, businessAccountId.
+     * Only returns safe, user-facing data.
+     */
+    getConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
       const establishment = await resolveTenant(ctx.user.id);
       const settings = await getWhatsappSettings(establishment.id);
-      // Mask access token for security
-      if (settings?.accessToken) {
+      const estab = await getEstablishmentById(establishment.id);
+
+      if (!settings) {
         return {
-          ...settings,
-          accessToken: settings.accessToken.slice(0, 8) + "..." + settings.accessToken.slice(-4),
+          status: "not_connected" as const,
+          isEnabled: false,
+          phoneNumber: null,
+          establishmentName: estab?.name ?? null,
+          autoReplyEnabled: true,
+          autoReplyMessage: null,
+          connectedAt: null,
+          hasCredentials: false,
+          conversationCount: 0,
         };
       }
-      return settings ?? null;
+
+      const { countConversationsByEstablishment } = await import("./whatsappDb");
+      const convCount = await countConversationsByEstablishment(establishment.id);
+
+      // Determine connection status
+      const hasCredentials = !!(settings.accessToken && settings.phoneNumberId);
+      let status: "not_connected" | "connected" | "error" = "not_connected";
+      if (settings.isEnabled && hasCredentials) {
+        status = "connected";
+      } else if (settings.isEnabled && !hasCredentials) {
+        status = "error"; // enabled but missing credentials
+      }
+
+      return {
+        status,
+        isEnabled: settings.isEnabled,
+        phoneNumber: settings.phoneNumber, // safe: it's the user's own number
+        establishmentName: estab?.name ?? null,
+        autoReplyEnabled: settings.autoReplyEnabled,
+        autoReplyMessage: settings.autoReplyMessage,
+        connectedAt: settings.isEnabled && hasCredentials ? settings.updatedAt : null,
+        hasCredentials,
+        conversationCount: convCount,
+      };
     }),
 
-    /** Update WhatsApp settings */
-    updateSettings: protectedProcedure
+    /**
+     * Connect WhatsApp — receives credentials from Embedded Signup callback
+     * or admin setup flow. Saves all credentials securely and enables integration.
+     */
+    connect: protectedProcedure
+      .input(
+        z.object({
+          accessToken: z.string().min(1, "Token de acesso é obrigatório"),
+          phoneNumberId: z.string().min(1, "Phone Number ID é obrigatório"),
+          phoneNumber: z.string().max(20).optional(),
+          businessAccountId: z.string().max(50).optional(),
+          webhookVerifyToken: z.string().max(100).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // Generate a secure webhook verify token if not provided
+        const verifyToken = input.webhookVerifyToken || `prontei_${establishment.id}_${Date.now()}`;
+
+        await upsertWhatsappSettings({
+          establishmentId: establishment.id,
+          isEnabled: true,
+          provider: "meta",
+          accessToken: input.accessToken,
+          phoneNumberId: input.phoneNumberId,
+          phoneNumber: input.phoneNumber ?? null,
+          businessAccountId: input.businessAccountId ?? null,
+          webhookVerifyToken: verifyToken,
+        });
+
+        console.log(`[WhatsApp] Conexão estabelecida para establishment ${establishment.id}`);
+
+        return {
+          success: true,
+          webhookUrl: `/api/whatsapp/webhook`,
+          webhookVerifyToken: verifyToken,
+        };
+      }),
+
+    /**
+     * Disconnect WhatsApp — disables integration and clears credentials.
+     */
+    disconnect: protectedProcedure.mutation(async ({ ctx }) => {
+      const establishment = await resolveTenant(ctx.user.id);
+
+      await upsertWhatsappSettings({
+        establishmentId: establishment.id,
+        isEnabled: false,
+        accessToken: null,
+        phoneNumberId: null,
+        businessAccountId: null,
+        webhookVerifyToken: null,
+      });
+
+      console.log(`[WhatsApp] Conexão removida para establishment ${establishment.id}`);
+      return { success: true };
+    }),
+
+    /**
+     * Test WhatsApp connection — validates credentials by calling Meta API.
+     * Does NOT send a real message, just checks if the token is valid.
+     */
+    testConnection: protectedProcedure.mutation(async ({ ctx }) => {
+      const establishment = await resolveTenant(ctx.user.id);
+      const settings = await getWhatsappSettings(establishment.id);
+
+      if (!settings || !settings.isEnabled) {
+        return {
+          success: false,
+          error: "WhatsApp não está conectado.",
+          errorCode: "NOT_CONNECTED",
+        };
+      }
+
+      const { validateSendCredentials } = await import("./whatsappWebhook");
+      const validation = validateSendCredentials(settings.phoneNumberId, settings.accessToken);
+      if (!validation.valid) {
+        return {
+          success: false,
+          error: "Credenciais incompletas. Reconecte o WhatsApp.",
+          errorCode: "INVALID_CREDENTIALS",
+        };
+      }
+
+      // Validate token by calling Meta API (GET phone number info)
+      try {
+        const url = `https://graph.facebook.com/v21.0/${settings.phoneNumberId}`;
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${settings.accessToken}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            success: true,
+            phoneNumber: data.display_phone_number ?? settings.phoneNumber,
+            verifiedName: data.verified_name ?? null,
+            qualityRating: data.quality_rating ?? null,
+          };
+        } else {
+          const errorBody = await response.json().catch(() => ({}));
+          const errorMsg = (errorBody as any)?.error?.message ?? "Token inválido ou expirado";
+          return {
+            success: false,
+            error: errorMsg,
+            errorCode: String(response.status),
+          };
+        }
+      } catch (networkError: any) {
+        return {
+          success: false,
+          error: `Erro de rede: ${networkError?.message ?? "desconhecido"}`,
+          errorCode: "NETWORK_ERROR",
+        };
+      }
+    }),
+
+    /**
+     * Update auto-reply settings (safe — no credentials exposed).
+     */
+    updateAutoReply: protectedProcedure
+      .input(
+        z.object({
+          autoReplyEnabled: z.boolean(),
+          autoReplyMessage: z.string().max(1000).optional().nullable(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        await upsertWhatsappSettings({
+          establishmentId: establishment.id,
+          autoReplyEnabled: input.autoReplyEnabled,
+          autoReplyMessage: input.autoReplyMessage ?? null,
+        });
+        return { success: true };
+      }),
+
+    /**
+     * Admin-only: update raw settings (for system admin, not end user).
+     * Kept for backward compatibility but hidden from user-facing UI.
+     */
+    adminUpdateSettings: protectedProcedure
       .input(
         z.object({
           isEnabled: z.boolean().optional(),

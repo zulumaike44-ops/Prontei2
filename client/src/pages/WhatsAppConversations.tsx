@@ -33,7 +33,7 @@ export default function WhatsAppConversations() {
     { enabled: isAuthenticated }
   );
 
-  const { data: settings } = trpc.whatsapp.getSettings.useQuery(undefined, {
+  const { data: connectionStatus } = trpc.whatsapp.getConnectionStatus.useQuery(undefined, {
     enabled: isAuthenticated,
   });
 
@@ -106,7 +106,7 @@ export default function WhatsAppConversations() {
         </div>
 
         {/* Not enabled warning */}
-        {settings && !settings.isEnabled && (
+        {connectionStatus && !connectionStatus.isEnabled && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
             <p className="font-medium">WhatsApp desativado</p>
             <p className="text-xs mt-1">
