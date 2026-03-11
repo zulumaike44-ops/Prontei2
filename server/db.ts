@@ -12,10 +12,13 @@ import {
   workingHours,
   blockedTimes,
   customers,
+  appointments,
+  appointmentStatusHistory,
   type InsertEstablishment,
   type InsertProfessional,
   type InsertService,
   type InsertCustomer,
+  type InsertAppointment,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 

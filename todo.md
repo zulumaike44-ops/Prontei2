@@ -94,3 +94,20 @@
 - [x] 14E — Frontend: link Clientes no sidebar do dashboard
 - [x] 14F — Testes vitest para customers (CRUD, deduplicação, multi-tenant, busca) — 30 testes, 129 total
 - [x] 14G — Validação final e checkpoint
+
+## ETAPA 15 — Motor de Disponibilidade + Agendamentos (appointments)
+
+- [x] 15A — Verificar/ajustar tabela appointments no schema (customerId notNull)
+- [x] 15B — Regras de negócio: validações de tenant, cálculo de duração/preço efetivos
+- [x] 15C — Motor de disponibilidade: calcular slots livres (working_hours - break - blocked_times - appointments)
+- [x] 15D — Backend: queries CRUD de appointments em server/appointmentDb.ts
+- [x] 15D — Backend: rotas tRPC (list, get, create, updateStatus, cancel, count)
+- [x] 15D — Backend: rota de availability (professionalId, serviceId, date)
+- [x] 15E — Backend: detecção de conflito centralizada (hasOverlap + hasDateOverlap)
+- [x] 15E — Backend: validações Zod e proteção multi-tenant
+- [x] 15F — Frontend: tela de agendamentos (/appointments) com listagem e filtros
+- [x] 15F — Frontend: fluxo de criação guiado (profissional → serviço → cliente → data → slot → confirmar)
+- [x] 15F — Frontend: alteração de status e cancelamento
+- [x] 15F — Frontend: link Agendamentos no sidebar do dashboard
+- [x] 15G — Testes vitest para availability engine e appointments — 50 testes, 179 total
+- [x] 15H — Validação final e checkpoint

@@ -43,6 +43,7 @@ const menuItems = [
   { icon: Scissors, label: "Serviços", path: "/services" },
   { icon: Ban, label: "Bloqueios", path: "/blocked-times" },
   { icon: UserRound, label: "Clientes", path: "/customers" },
+  { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: Settings, label: "Configurações", path: "/settings" },
 ];
 

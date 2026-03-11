@@ -45,6 +45,18 @@ import {
   countCustomersByEstablishment,
 } from "./db";
 import { TRPCError } from "@trpc/server";
+import {
+  getAppointmentsByEstablishment,
+  getAppointmentById,
+  createAppointment,
+  updateAppointment,
+  updateAppointmentStatus,
+  checkAppointmentConflict,
+  countAppointmentsByEstablishment,
+  VALID_STATUSES,
+  ACTIVE_APPOINTMENT_STATUSES,
+} from "./appointmentDb";
+import { calculateAvailableSlots, hasDateOverlap } from "./availability";
 
 // ============================================================
 // HELPER: resolve tenant (establishment) for current user
@@ -1090,6 +1102,321 @@ export const appRouter = router({
         count: await countCustomersByEstablishment(establishment.id),
       };
     }),
+  }),
+
+  // ============================================================
+  // AVAILABILITY (protected — tenant-scoped)
+  // ============================================================
+  availability: router({
+    /** Get available slots for a professional+service on a date */
+    getSlots: protectedProcedure
+      .input(
+        z.object({
+          professionalId: z.number().int().positive(),
+          serviceId: z.number().int().positive(),
+          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de data inválido. Use YYYY-MM-DD."),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // Validate professional belongs to tenant
+        const professional = await getProfessionalById(input.professionalId, establishment.id);
+        if (!professional) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Profissional não encontrado neste estabelecimento.",
+          });
+        }
+
+        // Validate service belongs to tenant
+        const service = await getServiceById(input.serviceId, establishment.id);
+        if (!service) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Serviço não encontrado neste estabelecimento.",
+          });
+        }
+
+        return calculateAvailableSlots({
+          professionalId: input.professionalId,
+          serviceId: input.serviceId,
+          date: input.date,
+          establishmentId: establishment.id,
+        });
+      }),
+  }),
+
+  // ============================================================
+  // APPOINTMENTS (protected — tenant-scoped)
+  // ============================================================
+  appointment: router({
+    /** List appointments with optional filters */
+    list: protectedProcedure
+      .input(
+        z.object({
+          professionalId: z.number().int().positive().optional(),
+          customerId: z.number().int().positive().optional(),
+          dateFrom: z.string().optional(),
+          dateTo: z.string().optional(),
+          status: z.string().optional(),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        return getAppointmentsByEstablishment(establishment.id, {
+          professionalId: input?.professionalId,
+          customerId: input?.customerId,
+          dateFrom: input?.dateFrom ? new Date(input.dateFrom) : undefined,
+          dateTo: input?.dateTo ? new Date(input.dateTo) : undefined,
+          status: input?.status,
+        });
+      }),
+
+    /** Get a single appointment by ID */
+    get: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const appointment = await getAppointmentById(input.id, establishment.id);
+        if (!appointment) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Agendamento não encontrado.",
+          });
+        }
+        return appointment;
+      }),
+
+    /** Create a new appointment */
+    create: protectedProcedure
+      .input(
+        z.object({
+          professionalId: z.number().int().positive(),
+          serviceId: z.number().int().positive(),
+          customerId: z.number().int().positive(),
+          startDatetime: z.string(), // ISO datetime string
+          notes: z.string().max(500).optional().or(z.literal("")),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // 1. Validate professional belongs to tenant
+        const professional = await getProfessionalById(input.professionalId, establishment.id);
+        if (!professional) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Profissional não encontrado neste estabelecimento.",
+          });
+        }
+
+        // 2. Validate service belongs to tenant
+        const service = await getServiceById(input.serviceId, establishment.id);
+        if (!service) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Serviço não encontrado neste estabelecimento.",
+          });
+        }
+
+        // 3. Validate customer belongs to tenant
+        const customer = await getCustomerById(input.customerId, establishment.id);
+        if (!customer) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Cliente não encontrado neste estabelecimento.",
+          });
+        }
+
+        // 4. Validate professional_service link exists and is active
+        const links = await getProfessionalServiceLinks(input.professionalId, establishment.id);
+        const link = links.find((l) => l.serviceId === input.serviceId && l.isActive);
+        if (!link) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Este profissional não oferece este serviço.",
+          });
+        }
+
+        // 5. Calculate effective duration and price
+        const durationMinutes = link.customDurationMinutes ?? link.serviceDurationMinutes;
+        const effectivePrice = link.customPrice ?? link.servicePrice ?? "0";
+
+        if (!durationMinutes || durationMinutes <= 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Duração do serviço inválida.",
+          });
+        }
+
+        // 6. Calculate start and end datetimes
+        const startDatetime = new Date(input.startDatetime);
+        if (isNaN(startDatetime.getTime())) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Data/hora de início inválida.",
+          });
+        }
+
+        const endDatetime = new Date(startDatetime.getTime() + durationMinutes * 60 * 1000);
+
+        // 7. Check for appointment conflicts
+        const conflicts = await checkAppointmentConflict(
+          input.professionalId,
+          establishment.id,
+          startDatetime,
+          endDatetime
+        );
+
+        if (conflicts.length > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Conflito de horário: já existe um agendamento neste período para este profissional.",
+          });
+        }
+
+        // 8. Check blocked times
+        const dayStart = new Date(startDatetime);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(startDatetime);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const blockedList = await getBlockedTimesByEstablishment(establishment.id, {
+          dateFrom: dayStart,
+          dateTo: dayEnd,
+          activeOnly: true,
+        });
+
+        const relevantBlocked = blockedList.filter(
+          (bt) => bt.professionalId === null || bt.professionalId === input.professionalId
+        );
+
+        const blockedConflict = relevantBlocked.some((bt) =>
+          hasDateOverlap(
+            new Date(bt.startDatetime),
+            new Date(bt.endDatetime),
+            startDatetime,
+            endDatetime
+          )
+        );
+
+        if (blockedConflict) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Conflito: existe um bloqueio de horário neste período.",
+          });
+        }
+
+        // 9. Create the appointment
+        return createAppointment({
+          establishmentId: establishment.id,
+          professionalId: input.professionalId,
+          serviceId: input.serviceId,
+          customerId: input.customerId,
+          startDatetime,
+          endDatetime,
+          durationMinutes,
+          price: effectivePrice,
+          status: "pending",
+          notes: input.notes || null,
+          source: "manual",
+          createdBy: ctx.user.id,
+        });
+      }),
+
+    /** Update appointment status */
+    updateStatus: protectedProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          status: z.enum(["pending", "confirmed", "cancelled", "completed", "no_show"]),
+          reason: z.string().max(255).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const existing = await getAppointmentById(input.id, establishment.id);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Agendamento não encontrado.",
+          });
+        }
+
+        // Validate status transition
+        const currentStatus = existing.status;
+
+        // Cannot change from terminal states
+        if (["cancelled", "completed", "no_show"].includes(currentStatus) && input.status !== currentStatus) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Não é possível alterar o status de um agendamento ${currentStatus}.`,
+          });
+        }
+
+        return updateAppointmentStatus(
+          input.id,
+          establishment.id,
+          input.status,
+          ctx.user.id,
+          input.reason
+        );
+      }),
+
+    /** Cancel an appointment (shortcut for updateStatus with cancelled) */
+    cancel: protectedProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          reason: z.string().max(255).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const existing = await getAppointmentById(input.id, establishment.id);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Agendamento não encontrado.",
+          });
+        }
+
+        if (["cancelled", "completed", "no_show"].includes(existing.status)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Não é possível cancelar um agendamento ${existing.status}.`,
+          });
+        }
+
+        return updateAppointmentStatus(
+          input.id,
+          establishment.id,
+          "cancelled",
+          ctx.user.id,
+          input.reason
+        );
+      }),
+
+    /** Count appointments for current tenant */
+    count: protectedProcedure
+      .input(
+        z.object({
+          status: z.string().optional(),
+          dateFrom: z.string().optional(),
+          dateTo: z.string().optional(),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        return {
+          count: await countAppointmentsByEstablishment(establishment.id, {
+            status: input?.status,
+            dateFrom: input?.dateFrom ? new Date(input.dateFrom) : undefined,
+            dateTo: input?.dateTo ? new Date(input.dateTo) : undefined,
+          }),
+        };
+      }),
   }),
 });
 

@@ -256,7 +256,7 @@ export const appointments = mysqlTable("appointments", {
   establishmentId: int("establishmentId").notNull(),
   professionalId: int("professionalId").notNull(),
   serviceId: int("serviceId").notNull(),
-  customerId: int("customerId"),
+  customerId: int("customerId").notNull(),
   startDatetime: datetime("startDatetime").notNull(),
   endDatetime: datetime("endDatetime").notNull(),
   durationMinutes: smallint("durationMinutes").notNull(),

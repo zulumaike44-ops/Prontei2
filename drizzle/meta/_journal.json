@@ -29,6 +29,13 @@
       "when": 1773191728729,
       "tag": "0003_chief_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1773192749760,
+      "tag": "0004_smart_venom",
+      "breakpoints": true
     }
   ]
 }
