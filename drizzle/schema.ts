@@ -315,3 +315,75 @@ export const auditLogs = mysqlTable("audit_logs", {
   index("idx_audit_entity").on(table.entityType, table.entityId),
   index("idx_audit_created").on(table.createdAt),
 ]);
+
+// ============================================================
+// 14. WHATSAPP_SETTINGS — Configuração WhatsApp por tenant
+// ============================================================
+export const whatsappSettings = mysqlTable("whatsapp_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  establishmentId: int("establishmentId").notNull(),
+  isEnabled: boolean("isEnabled").default(false).notNull(),
+  phoneNumber: varchar("phoneNumber", { length: 20 }),
+  provider: varchar("provider", { length: 50 }).default("meta").notNull(), // meta, z-api, evolution, etc.
+  accessToken: text("accessToken"), // encrypted/placeholder — not stored in plain text in production
+  webhookVerifyToken: varchar("webhookVerifyToken", { length: 100 }),
+  phoneNumberId: varchar("phoneNumberId", { length: 50 }), // Meta Cloud API phone number ID
+  businessAccountId: varchar("businessAccountId", { length: 50 }), // Meta WABA ID
+  autoReplyEnabled: boolean("autoReplyEnabled").default(true).notNull(),
+  autoReplyMessage: text("autoReplyMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_whatsapp_settings_establishment").on(table.establishmentId),
+]);
+
+export type WhatsappSettings = typeof whatsappSettings.$inferSelect;
+export type InsertWhatsappSettings = typeof whatsappSettings.$inferInsert;
+
+// ============================================================
+// 15. WHATSAPP_CONVERSATIONS — Conversas do WhatsApp
+// ============================================================
+export const whatsappConversations = mysqlTable("whatsapp_conversations", {
+  id: int("id").autoincrement().primaryKey(),
+  establishmentId: int("establishmentId").notNull(),
+  customerId: int("customerId"), // nullable — vinculado quando customer é encontrado/criado
+  phone: varchar("phone", { length: 20 }).notNull(), // telefone do remetente
+  normalizedPhone: varchar("normalizedPhone", { length: 20 }).notNull(),
+  status: varchar("status", { length: 20 }).default("open").notNull(), // open, closed
+  lastMessageAt: datetime("lastMessageAt"),
+  lastMessagePreview: varchar("lastMessagePreview", { length: 255 }),
+  messageCount: int("messageCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_wa_conv_establishment").on(table.establishmentId),
+  index("idx_wa_conv_phone").on(table.establishmentId, table.normalizedPhone),
+  index("idx_wa_conv_customer").on(table.establishmentId, table.customerId),
+  index("idx_wa_conv_status").on(table.establishmentId, table.status),
+  index("idx_wa_conv_last_msg").on(table.establishmentId, table.lastMessageAt),
+]);
+
+export type WhatsappConversation = typeof whatsappConversations.$inferSelect;
+export type InsertWhatsappConversation = typeof whatsappConversations.$inferInsert;
+
+// ============================================================
+// 16. WHATSAPP_MESSAGES — Mensagens individuais
+// ============================================================
+export const whatsappMessages = mysqlTable("whatsapp_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  conversationId: int("conversationId").notNull(),
+  direction: varchar("direction", { length: 10 }).notNull(), // inbound, outbound
+  messageType: varchar("messageType", { length: 20 }).default("text").notNull(), // text, image, audio, etc.
+  content: text("content"),
+  externalMessageId: varchar("externalMessageId", { length: 100 }), // ID do provider
+  status: varchar("status", { length: 20 }).default("received").notNull(), // received, sent, delivered, read, failed
+  metadata: json("metadata"), // dados extras do provider
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_wa_msg_conversation").on(table.conversationId),
+  index("idx_wa_msg_direction").on(table.conversationId, table.direction),
+  index("idx_wa_msg_external").on(table.externalMessageId),
+]);
+
+export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
+export type InsertWhatsappMessage = typeof whatsappMessages.$inferInsert;

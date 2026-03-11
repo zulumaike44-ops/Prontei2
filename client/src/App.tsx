@@ -15,6 +15,9 @@ import BlockedTimes from "./pages/BlockedTimes";
 import Customers from "./pages/Customers";
 import Appointments from "./pages/Appointments";
 import Agenda from "./pages/Agenda";
+import WhatsAppSettings from "./pages/WhatsAppSettings";
+import WhatsAppConversations from "./pages/WhatsAppConversations";
+import WhatsAppConversationDetail from "./pages/WhatsAppConversationDetail";
 
 function Router() {
   return (
@@ -30,6 +33,9 @@ function Router() {
       <Route path="/customers" component={Customers} />
       <Route path="/appointments" component={Appointments} />
       <Route path="/dashboard/agenda" component={Agenda} />
+      <Route path="/dashboard/whatsapp" component={WhatsAppSettings} />
+      <Route path="/dashboard/whatsapp/conversations" component={WhatsAppConversations} />
+      <Route path="/dashboard/whatsapp/conversations/:id" component={WhatsAppConversationDetail} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

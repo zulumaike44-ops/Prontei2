@@ -1,0 +1,354 @@
+/**
+ * WHATSAPP DB QUERIES — Queries de banco para módulo WhatsApp (Etapa 19)
+ */
+
+import { eq, and, desc, asc, sql } from "drizzle-orm";
+import {
+  whatsappSettings,
+  whatsappConversations,
+  whatsappMessages,
+  customers,
+  type InsertWhatsappSettings,
+  type InsertWhatsappConversation,
+  type InsertWhatsappMessage,
+} from "../drizzle/schema";
+import { getDb } from "./db";
+
+// ============================================================
+// WHATSAPP SETTINGS
+// ============================================================
+
+export async function getWhatsappSettings(establishmentId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(whatsappSettings)
+    .where(eq(whatsappSettings.establishmentId, establishmentId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function upsertWhatsappSettings(data: {
+  establishmentId: number;
+  isEnabled?: boolean;
+  phoneNumber?: string | null;
+  provider?: string;
+  accessToken?: string | null;
+  webhookVerifyToken?: string | null;
+  phoneNumberId?: string | null;
+  businessAccountId?: string | null;
+  autoReplyEnabled?: boolean;
+  autoReplyMessage?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getWhatsappSettings(data.establishmentId);
+
+  if (existing) {
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (data.isEnabled !== undefined) updateData.isEnabled = data.isEnabled;
+    if (data.phoneNumber !== undefined) updateData.phoneNumber = data.phoneNumber;
+    if (data.provider !== undefined) updateData.provider = data.provider;
+    if (data.accessToken !== undefined) updateData.accessToken = data.accessToken;
+    if (data.webhookVerifyToken !== undefined) updateData.webhookVerifyToken = data.webhookVerifyToken;
+    if (data.phoneNumberId !== undefined) updateData.phoneNumberId = data.phoneNumberId;
+    if (data.businessAccountId !== undefined) updateData.businessAccountId = data.businessAccountId;
+    if (data.autoReplyEnabled !== undefined) updateData.autoReplyEnabled = data.autoReplyEnabled;
+    if (data.autoReplyMessage !== undefined) updateData.autoReplyMessage = data.autoReplyMessage;
+
+    await db
+      .update(whatsappSettings)
+      .set(updateData)
+      .where(eq(whatsappSettings.id, existing.id));
+
+    return getWhatsappSettings(data.establishmentId);
+  } else {
+    await db.insert(whatsappSettings).values({
+      establishmentId: data.establishmentId,
+      isEnabled: data.isEnabled ?? false,
+      phoneNumber: data.phoneNumber ?? null,
+      provider: data.provider ?? "meta",
+      accessToken: data.accessToken ?? null,
+      webhookVerifyToken: data.webhookVerifyToken ?? null,
+      phoneNumberId: data.phoneNumberId ?? null,
+      businessAccountId: data.businessAccountId ?? null,
+      autoReplyEnabled: data.autoReplyEnabled ?? true,
+      autoReplyMessage: data.autoReplyMessage ?? null,
+    });
+
+    return getWhatsappSettings(data.establishmentId);
+  }
+}
+
+/**
+ * Encontra o establishment pelo phoneNumber configurado no WhatsApp.
+ * Usado pelo webhook para resolver tenant sem autenticação de usuário.
+ */
+export async function getSettingsByPhoneNumber(phoneNumber: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const normalized = phoneNumber.replace(/\D/g, "");
+
+  // Try exact match first, then normalized
+  const result = await db
+    .select()
+    .from(whatsappSettings)
+    .where(eq(whatsappSettings.phoneNumber, phoneNumber))
+    .limit(1);
+
+  if (result.length > 0) return result[0];
+
+  // Fallback: try matching by phone_number_id (Meta Cloud API)
+  const result2 = await db
+    .select()
+    .from(whatsappSettings)
+    .where(eq(whatsappSettings.phoneNumberId, phoneNumber))
+    .limit(1);
+
+  return result2.length > 0 ? result2[0] : undefined;
+}
+
+// ============================================================
+// WHATSAPP CONVERSATIONS
+// ============================================================
+
+export async function getConversationsByEstablishment(
+  establishmentId: number,
+  filters?: {
+    status?: string;
+    limit?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = [eq(whatsappConversations.establishmentId, establishmentId)];
+
+  if (filters?.status) {
+    conditions.push(eq(whatsappConversations.status, filters.status));
+  }
+
+  return db
+    .select({
+      id: whatsappConversations.id,
+      establishmentId: whatsappConversations.establishmentId,
+      customerId: whatsappConversations.customerId,
+      phone: whatsappConversations.phone,
+      normalizedPhone: whatsappConversations.normalizedPhone,
+      status: whatsappConversations.status,
+      lastMessageAt: whatsappConversations.lastMessageAt,
+      lastMessagePreview: whatsappConversations.lastMessagePreview,
+      messageCount: whatsappConversations.messageCount,
+      createdAt: whatsappConversations.createdAt,
+      updatedAt: whatsappConversations.updatedAt,
+      // Join customer name
+      customerName: customers.name,
+    })
+    .from(whatsappConversations)
+    .leftJoin(customers, eq(whatsappConversations.customerId, customers.id))
+    .where(and(...conditions))
+    .orderBy(desc(whatsappConversations.lastMessageAt))
+    .limit(filters?.limit ?? 100);
+}
+
+export async function getConversationById(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select({
+      id: whatsappConversations.id,
+      establishmentId: whatsappConversations.establishmentId,
+      customerId: whatsappConversations.customerId,
+      phone: whatsappConversations.phone,
+      normalizedPhone: whatsappConversations.normalizedPhone,
+      status: whatsappConversations.status,
+      lastMessageAt: whatsappConversations.lastMessageAt,
+      lastMessagePreview: whatsappConversations.lastMessagePreview,
+      messageCount: whatsappConversations.messageCount,
+      createdAt: whatsappConversations.createdAt,
+      updatedAt: whatsappConversations.updatedAt,
+      customerName: customers.name,
+      customerPhone: customers.phone,
+    })
+    .from(whatsappConversations)
+    .leftJoin(customers, eq(whatsappConversations.customerId, customers.id))
+    .where(
+      and(
+        eq(whatsappConversations.id, id),
+        eq(whatsappConversations.establishmentId, establishmentId)
+      )
+    )
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+/**
+ * Encontra ou cria uma conversa para um telefone dentro do establishment.
+ * Se já existe conversa aberta, retorna ela. Se não, cria nova.
+ */
+export async function findOrCreateConversation(
+  establishmentId: number,
+  phone: string,
+  normalizedPhone: string,
+  customerId?: number | null
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Procura conversa aberta existente para este telefone
+  const existing = await db
+    .select()
+    .from(whatsappConversations)
+    .where(
+      and(
+        eq(whatsappConversations.establishmentId, establishmentId),
+        eq(whatsappConversations.normalizedPhone, normalizedPhone),
+        eq(whatsappConversations.status, "open")
+      )
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    const conv = existing[0];
+    // Atualiza customerId se agora temos e antes não tínhamos
+    if (customerId && !conv.customerId) {
+      await db
+        .update(whatsappConversations)
+        .set({ customerId, updatedAt: new Date() })
+        .where(eq(whatsappConversations.id, conv.id));
+    }
+    return { ...conv, customerId: customerId ?? conv.customerId, isNew: false };
+  }
+
+  // Cria nova conversa
+  const result = await db.insert(whatsappConversations).values({
+    establishmentId,
+    customerId: customerId ?? null,
+    phone,
+    normalizedPhone,
+    status: "open",
+    lastMessageAt: new Date(),
+    messageCount: 0,
+  });
+
+  const insertId = result[0].insertId;
+  const newConv = await db
+    .select()
+    .from(whatsappConversations)
+    .where(eq(whatsappConversations.id, insertId))
+    .limit(1);
+
+  return { ...newConv[0], isNew: true };
+}
+
+export async function updateConversationLastMessage(
+  conversationId: number,
+  preview: string
+) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(whatsappConversations)
+    .set({
+      lastMessageAt: new Date(),
+      lastMessagePreview: preview.slice(0, 255),
+      messageCount: sql`${whatsappConversations.messageCount} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(eq(whatsappConversations.id, conversationId));
+}
+
+export async function closeConversation(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(whatsappConversations)
+    .set({ status: "closed", updatedAt: new Date() })
+    .where(
+      and(
+        eq(whatsappConversations.id, id),
+        eq(whatsappConversations.establishmentId, establishmentId)
+      )
+    );
+
+  return { success: true };
+}
+
+// ============================================================
+// WHATSAPP MESSAGES
+// ============================================================
+
+export async function getMessagesByConversation(
+  conversationId: number,
+  limit: number = 100
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(whatsappMessages)
+    .where(eq(whatsappMessages.conversationId, conversationId))
+    .orderBy(asc(whatsappMessages.createdAt))
+    .limit(limit);
+}
+
+export async function createMessage(data: {
+  conversationId: number;
+  direction: string;
+  messageType?: string;
+  content: string | null;
+  externalMessageId?: string | null;
+  status?: string;
+  metadata?: unknown;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(whatsappMessages).values({
+    conversationId: data.conversationId,
+    direction: data.direction,
+    messageType: data.messageType ?? "text",
+    content: data.content,
+    externalMessageId: data.externalMessageId ?? null,
+    status: data.status ?? (data.direction === "inbound" ? "received" : "sent"),
+    metadata: data.metadata ?? null,
+  });
+
+  const insertId = result[0].insertId;
+
+  // Update conversation's last message
+  await updateConversationLastMessage(
+    data.conversationId,
+    data.content ?? "[mídia]"
+  );
+
+  const msg = await db
+    .select()
+    .from(whatsappMessages)
+    .where(eq(whatsappMessages.id, insertId))
+    .limit(1);
+
+  return msg[0];
+}
+
+export async function countConversationsByEstablishment(establishmentId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(whatsappConversations)
+    .where(eq(whatsappConversations.establishmentId, establishmentId));
+
+  return Number(result[0]?.count ?? 0);
+}

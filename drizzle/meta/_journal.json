@@ -36,6 +36,13 @@
       "when": 1773192749760,
       "tag": "0004_smart_venom",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1773197661833,
+      "tag": "0005_noisy_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }

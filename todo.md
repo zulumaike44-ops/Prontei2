@@ -133,3 +133,23 @@
 - [x] 17D — Frontend: estados de loading (skeleton) e vazio amigável
 - [x] 17E — Testes vitest para dashboard dinâmico (contagens, multi-tenant) — 12 testes, 214 total
 - [x] 17F — Validação final e checkpoint
+
+## ETAPA 19 — Integração WhatsApp v1
+- [x] 19A — Escopo e decisões do MVP (customer: opção B — criar automaticamente se não existir)
+- [x] 19B — Schema: tabela whatsapp_settings (config por tenant)
+- [x] 19B — Schema: tabela whatsapp_conversations (conversas tenant-scoped)
+- [x] 19B — Schema: tabela whatsapp_messages (mensagens inbound/outbound)
+- [x] 19B — db:push para aplicar schema
+- [x] 19C — Backend: queries CRUD de whatsapp_settings em whatsappDb.ts
+- [x] 19C — Backend: queries de conversations e messages
+- [x] 19C — Backend: webhook POST /api/whatsapp/webhook (recebimento inbound)
+- [x] 19C — Backend: webhook GET /api/whatsapp/webhook (verificação do provider)
+- [x] 19C — Backend: rotas tRPC (getSettings, updateSettings, listConversations, getConversation, getMessages, reply, closeConversation)
+- [x] 19D — Regra de vínculo: normalizar telefone → localizar customer → criar se não existir (implementado em whatsappWebhook.ts)
+- [x] 19E — Resposta automática inicial (stub/mock de envio + registro outbound — sendWhatsappMessage é stub)
+- [x] 19F — Frontend: página de configuração WhatsApp (/dashboard/whatsapp)
+- [x] 19F — Frontend: lista de conversas (/dashboard/whatsapp/conversations)
+- [x] 19F — Frontend: detalhe da conversa com mensagens e reply manual
+- [x] 19F — Frontend: links no sidebar do dashboard
+- [x] 19G — Testes vitest para módulo WhatsApp — 38 testes, 252 total
+- [x] 19H — Validação final e checkpoint

@@ -57,6 +57,16 @@ import {
   ACTIVE_APPOINTMENT_STATUSES,
 } from "./appointmentDb";
 import { calculateAvailableSlots, hasDateOverlap } from "./availability";
+import {
+  getWhatsappSettings,
+  upsertWhatsappSettings,
+  getConversationsByEstablishment,
+  getConversationById,
+  getMessagesByConversation,
+  createMessage,
+  closeConversation,
+} from "./whatsappDb";
+import { sendWhatsappMessage } from "./whatsappWebhook";
 
 // ============================================================
 // HELPER: resolve tenant (establishment) for current user
@@ -1463,6 +1473,158 @@ export const appRouter = router({
         activeCustomers,
       };
     }),
+  }),
+
+  // ============================================================
+  // WHATSAPP (protected — tenant-scoped)
+  // ============================================================
+  whatsapp: router({
+    /** Get WhatsApp settings for current tenant */
+    getSettings: protectedProcedure.query(async ({ ctx }) => {
+      const establishment = await resolveTenant(ctx.user.id);
+      const settings = await getWhatsappSettings(establishment.id);
+      // Mask access token for security
+      if (settings?.accessToken) {
+        return {
+          ...settings,
+          accessToken: settings.accessToken.slice(0, 8) + "..." + settings.accessToken.slice(-4),
+        };
+      }
+      return settings ?? null;
+    }),
+
+    /** Update WhatsApp settings */
+    updateSettings: protectedProcedure
+      .input(
+        z.object({
+          isEnabled: z.boolean().optional(),
+          phoneNumber: z.string().max(20).optional().nullable(),
+          provider: z.string().max(50).optional(),
+          accessToken: z.string().optional().nullable(),
+          webhookVerifyToken: z.string().max(100).optional().nullable(),
+          phoneNumberId: z.string().max(50).optional().nullable(),
+          businessAccountId: z.string().max(50).optional().nullable(),
+          autoReplyEnabled: z.boolean().optional(),
+          autoReplyMessage: z.string().max(1000).optional().nullable(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        return upsertWhatsappSettings({
+          establishmentId: establishment.id,
+          ...input,
+        });
+      }),
+
+    /** List conversations for current tenant */
+    listConversations: protectedProcedure
+      .input(
+        z.object({
+          status: z.string().optional(),
+          limit: z.number().int().positive().max(200).optional(),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        return getConversationsByEstablishment(establishment.id, {
+          status: input?.status,
+          limit: input?.limit,
+        });
+      }),
+
+    /** Get a single conversation by ID */
+    getConversation: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const conv = await getConversationById(input.id, establishment.id);
+        if (!conv) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Conversa n\u00e3o encontrada.",
+          });
+        }
+        return conv;
+      }),
+
+    /** Get messages for a conversation */
+    getMessages: protectedProcedure
+      .input(
+        z.object({
+          conversationId: z.number().int().positive(),
+          limit: z.number().int().positive().max(500).optional(),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        // Verify conversation belongs to tenant
+        const conv = await getConversationById(input.conversationId, establishment.id);
+        if (!conv) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Conversa n\u00e3o encontrada.",
+          });
+        }
+        return getMessagesByConversation(input.conversationId, input.limit ?? 100);
+      }),
+
+    /** Send a manual reply to a conversation */
+    reply: protectedProcedure
+      .input(
+        z.object({
+          conversationId: z.number().int().positive(),
+          message: z.string().min(1, "Mensagem n\u00e3o pode ser vazia").max(4096),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        // Verify conversation belongs to tenant
+        const conv = await getConversationById(input.conversationId, establishment.id);
+        if (!conv) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Conversa n\u00e3o encontrada.",
+          });
+        }
+
+        // Get settings for sending
+        const settings = await getWhatsappSettings(establishment.id);
+
+        // Send via stub
+        const result = await sendWhatsappMessage(
+          settings?.phoneNumberId ?? "",
+          settings?.accessToken ?? "",
+          conv.phone,
+          input.message
+        );
+
+        // Register outbound message
+        const msg = await createMessage({
+          conversationId: input.conversationId,
+          direction: "outbound",
+          messageType: "text",
+          content: input.message,
+          externalMessageId: result.messageId,
+          status: result.success ? "sent" : "failed",
+        });
+
+        return msg;
+      }),
+
+    /** Close a conversation */
+    closeConversation: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const conv = await getConversationById(input.id, establishment.id);
+        if (!conv) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Conversa n\u00e3o encontrada.",
+          });
+        }
+        return closeConversation(input.id, establishment.id);
+      }),
   }),
 });
 

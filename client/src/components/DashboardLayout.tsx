@@ -32,6 +32,7 @@ import {
   Scissors,
   Ban,
   UserRound,
+  MessageSquare,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -46,6 +47,7 @@ const menuItems = [
   { icon: UserRound, label: "Clientes", path: "/customers" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: CalendarDays, label: "Agenda", path: "/dashboard/agenda" },
+  { icon: MessageSquare, label: "WhatsApp", path: "/dashboard/whatsapp/conversations" },
   { icon: Settings, label: "Configurações", path: "/settings" },
 ];
 
