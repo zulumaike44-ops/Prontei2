@@ -1418,6 +1418,52 @@ export const appRouter = router({
         };
       }),
   }),
+
+  // ============================================================
+  // DASHBOARD SUMMARY (protected — tenant-scoped)
+  // ============================================================
+  dashboard: router({
+    /** Get dashboard summary with all key metrics in a single call */
+    summary: protectedProcedure.query(async ({ ctx }) => {
+      const establishment = await resolveTenant(ctx.user.id);
+
+      // Calculate date ranges
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      // Run all counts in parallel for performance
+      const [
+        appointmentsToday,
+        appointmentsThisMonth,
+        activeProfessionals,
+        activeServices,
+        activeCustomers,
+      ] = await Promise.all([
+        countAppointmentsByEstablishment(establishment.id, {
+          dateFrom: todayStart,
+          dateTo: todayEnd,
+        }),
+        countAppointmentsByEstablishment(establishment.id, {
+          dateFrom: monthStart,
+          dateTo: monthEnd,
+        }),
+        countProfessionalsByEstablishment(establishment.id),
+        countServicesByEstablishment(establishment.id),
+        countCustomersByEstablishment(establishment.id),
+      ]);
+
+      return {
+        appointmentsToday,
+        appointmentsThisMonth,
+        activeProfessionals,
+        activeServices,
+        activeCustomers,
+      };
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

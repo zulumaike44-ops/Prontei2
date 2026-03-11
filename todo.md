@@ -123,3 +123,13 @@
 - [x] 16D — Frontend: rota e link no sidebar
 - [x] 16E — Testes vitest para agenda (renderização, filtros, status, cancelamento, multi-tenant) — 23 testes, 202 total
 - [x] 16F — Validação final e checkpoint
+
+## ETAPA 17 — Dashboard Dinâmico do MVP
+- [x] 17A — Analisar dashboard atual e definir escopo/métricas
+- [x] 17B — Backend: criar endpoint dashboard.summary via tRPC (appointmentsToday, appointmentsThisMonth, activeProfessionals, activeServices, activeCustomers)
+- [x] 17B — Backend: queries de contagem com isolamento multi-tenant
+- [x] 17C — Frontend: conectar cards do dashboard a dados reais
+- [x] 17C — Frontend: links rápidos nos cards (agenda, profissionais, serviços)
+- [x] 17D — Frontend: estados de loading (skeleton) e vazio amigável
+- [x] 17E — Testes vitest para dashboard dinâmico (contagens, multi-tenant) — 12 testes, 214 total
+- [x] 17F — Validação final e checkpoint

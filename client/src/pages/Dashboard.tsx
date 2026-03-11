@@ -11,9 +11,12 @@ import {
   Building2,
   TrendingUp,
   CalendarPlus,
+  UserRound,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
@@ -24,6 +27,14 @@ export default function Dashboard() {
     isLoading: estLoading,
   } = trpc.establishment.mine.useQuery(undefined, {
     enabled: isAuthenticated,
+  });
+
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+  } = trpc.dashboard.summary.useQuery(undefined, {
+    enabled: isAuthenticated && !!establishment,
+    refetchInterval: 60_000, // Refresh every 60s
   });
 
   // Redirect to onboarding if no establishment or onboarding not completed
@@ -73,6 +84,55 @@ export default function Dashboard() {
     );
   }
 
+  // Stats cards configuration
+  const statsCards = [
+    {
+      label: "Agendamentos hoje",
+      value: summary?.appointmentsToday ?? 0,
+      icon: Calendar,
+      color: "text-primary",
+      bgColor: "bg-primary/10",
+      href: "/dashboard/agenda",
+      linkLabel: "Ver agenda",
+    },
+    {
+      label: "Profissionais",
+      value: summary?.activeProfessionals ?? 0,
+      icon: Users,
+      color: "text-teal",
+      bgColor: "bg-teal/10",
+      href: "/professionals",
+      linkLabel: "Gerenciar",
+    },
+    {
+      label: "Serviços",
+      value: summary?.activeServices ?? 0,
+      icon: Scissors,
+      color: "text-amber",
+      bgColor: "bg-amber/10",
+      href: "/services",
+      linkLabel: "Gerenciar",
+    },
+    {
+      label: "Este mês",
+      value: summary?.appointmentsThisMonth ?? 0,
+      icon: TrendingUp,
+      color: "text-primary",
+      bgColor: "bg-primary/10",
+      href: "/appointments",
+      linkLabel: "Ver todos",
+    },
+  ];
+
+  // Check if the tenant has any data at all
+  const hasData =
+    summary &&
+    (summary.activeProfessionals > 0 ||
+      summary.activeServices > 0 ||
+      summary.activeCustomers > 0 ||
+      summary.appointmentsToday > 0 ||
+      summary.appointmentsThisMonth > 0);
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
@@ -89,15 +149,7 @@ export default function Dashboard() {
           </div>
           <Button
             className="bg-primary hover:bg-terracotta-dark text-primary-foreground"
-            onClick={() => {
-              // Future: open new appointment modal
-              import("sonner").then(({ toast }) =>
-                toast.info("Funcionalidade em breve", {
-                  description:
-                    "O módulo de agendamentos será implementado na próxima etapa.",
-                })
-              );
-            }}
+            onClick={() => setLocation("/appointments")}
           >
             <CalendarPlus className="w-4 h-4 mr-2" />
             Novo agendamento
@@ -106,39 +158,11 @@ export default function Dashboard() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              label: "Agendamentos hoje",
-              value: "0",
-              icon: Calendar,
-              color: "text-primary",
-              bgColor: "bg-primary/10",
-            },
-            {
-              label: "Profissionais",
-              value: "0",
-              icon: Users,
-              color: "text-teal",
-              bgColor: "bg-teal/10",
-            },
-            {
-              label: "Serviços",
-              value: "0",
-              icon: Scissors,
-              color: "text-amber",
-              bgColor: "bg-amber/10",
-            },
-            {
-              label: "Este mês",
-              value: "0",
-              icon: TrendingUp,
-              color: "text-primary",
-              bgColor: "bg-primary/10",
-            },
-          ].map((stat) => (
+          {statsCards.map((stat) => (
             <div
               key={stat.label}
-              className="bg-card rounded-xl border border-border/50 p-5 shadow-sm"
+              className="bg-card rounded-xl border border-border/50 p-5 shadow-sm group hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => setLocation(stat.href)}
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-muted-foreground font-medium">
@@ -150,38 +174,133 @@ export default function Dashboard() {
                   <stat.icon className={`w-4.5 h-4.5 ${stat.color}`} />
                 </div>
               </div>
-              <p className="font-heading text-3xl font-bold text-foreground">
-                {stat.value}
-              </p>
+
+              {summaryLoading ? (
+                <Skeleton className="h-9 w-16 rounded" />
+              ) : (
+                <p className="font-heading text-3xl font-bold text-foreground">
+                  {stat.value}
+                </p>
+              )}
+
+              <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                <span>{stat.linkLabel}</span>
+                <ArrowRight className="w-3 h-3" />
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Quick Actions / Empty State */}
-        <div className="bg-card rounded-xl border border-border/50 p-8 shadow-sm">
-          <div className="text-center max-w-md mx-auto">
-            <div className="w-14 h-14 rounded-2xl bg-cream-dark flex items-center justify-center mx-auto mb-4">
-              <Clock className="w-7 h-7 text-muted-foreground" />
+        {/* Optional: Customers card */}
+        {summary && summary.activeCustomers > 0 && (
+          <div
+            className="bg-card rounded-xl border border-border/50 p-5 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setLocation("/customers")}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center">
+                <UserRound className="w-4.5 h-4.5 text-violet-600" />
+              </div>
+              <div>
+                <span className="text-sm text-muted-foreground font-medium">
+                  Clientes ativos
+                </span>
+                {summaryLoading ? (
+                  <Skeleton className="h-7 w-12 rounded mt-0.5" />
+                ) : (
+                  <p className="font-heading text-xl font-bold text-foreground">
+                    {summary.activeCustomers}
+                  </p>
+                )}
+              </div>
             </div>
-            <h3 className="font-heading text-lg font-semibold text-foreground mb-2">
-              Sua agenda está vazia
-            </h3>
-            <p className="text-muted-foreground mb-6">
-              Cadastre profissionais e serviços para começar a receber
-              agendamentos. Os módulos completos serão ativados em breve.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button
-                variant="outline"
-                onClick={() => setLocation("/settings")}
-                className="border-border"
-              >
-                <Building2 className="w-4 h-4 mr-2" />
-                Configurações
-              </Button>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span>Gerenciar</span>
+              <ArrowRight className="w-3 h-3" />
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Quick Actions / Empty State */}
+        {!summaryLoading && !hasData && (
+          <div className="bg-card rounded-xl border border-border/50 p-8 shadow-sm">
+            <div className="text-center max-w-md mx-auto">
+              <div className="w-14 h-14 rounded-2xl bg-cream-dark flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-7 h-7 text-muted-foreground" />
+              </div>
+              <h3 className="font-heading text-lg font-semibold text-foreground mb-2">
+                Sua agenda está vazia
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Cadastre profissionais e serviços para começar a receber
+                agendamentos.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setLocation("/professionals")}
+                  className="border-border"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Cadastrar profissional
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setLocation("/services")}
+                  className="border-border"
+                >
+                  <Scissors className="w-4 h-4 mr-2" />
+                  Cadastrar serviço
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Active state: quick summary */}
+        {!summaryLoading && hasData && (
+          <div className="bg-card rounded-xl border border-border/50 p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-heading text-base font-semibold text-foreground mb-1">
+                  Acesso rápido
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Gerencie sua agenda e cadastros
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLocation("/dashboard/agenda")}
+                  className="border-border"
+                >
+                  <Calendar className="w-4 h-4 mr-1.5" />
+                  Agenda do dia
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLocation("/appointments")}
+                  className="border-border"
+                >
+                  <CalendarPlus className="w-4 h-4 mr-1.5" />
+                  Novo agendamento
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLocation("/customers")}
+                  className="border-border"
+                >
+                  <UserRound className="w-4 h-4 mr-1.5" />
+                  Clientes
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
