@@ -22,6 +22,13 @@
       "when": 1773190416362,
       "tag": "0002_melted_wolfsbane",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1773191728729,
+      "tag": "0003_chief_toxin",
+      "breakpoints": true
     }
   ]
 }

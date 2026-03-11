@@ -1,4 +1,4 @@
-import { eq, and, isNull, asc, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, isNull, asc, desc, sql, gte, lte, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -11,9 +11,11 @@ import {
   professionalServices,
   workingHours,
   blockedTimes,
+  customers,
   type InsertEstablishment,
   type InsertProfessional,
   type InsertService,
+  type InsertCustomer,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -826,6 +828,191 @@ export async function countBlockedTimesByEstablishment(establishmentId: number) 
       and(
         eq(blockedTimes.establishmentId, establishmentId),
         eq(blockedTimes.isActive, true)
+      )
+    );
+
+  return Number(result[0]?.count ?? 0);
+}
+
+// ============================================================
+// CUSTOMER QUERIES
+// ============================================================
+
+/**
+ * Normaliza telefone: remove tudo exceto dígitos.
+ * Ex: "(11) 99999-1234" → "11999991234"
+ */
+export function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
+export async function getCustomersByEstablishment(
+  establishmentId: number,
+  filters?: {
+    search?: string;
+    activeOnly?: boolean;
+  }
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = [eq(customers.establishmentId, establishmentId)];
+
+  if (filters?.activeOnly) {
+    conditions.push(eq(customers.isActive, true));
+  }
+
+  if (filters?.search && filters.search.trim().length > 0) {
+    const term = `%${filters.search.trim()}%`;
+    const normalizedTerm = `%${normalizePhone(filters.search.trim())}%`;
+    // Search by name OR phone (original or normalized)
+    conditions.push(
+      or(
+        like(customers.name, term),
+        like(customers.phone, term),
+        like(customers.normalizedPhone, normalizedTerm)
+      )!
+    );
+  }
+
+  return db
+    .select()
+    .from(customers)
+    .where(and(...conditions))
+    .orderBy(asc(customers.name))
+    .limit(200);
+}
+
+export async function getCustomerById(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(customers)
+    .where(
+      and(
+        eq(customers.id, id),
+        eq(customers.establishmentId, establishmentId)
+      )
+    )
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getCustomerByNormalizedPhone(
+  normalizedPhone: string,
+  establishmentId: number
+) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(customers)
+    .where(
+      and(
+        eq(customers.normalizedPhone, normalizedPhone),
+        eq(customers.establishmentId, establishmentId)
+      )
+    )
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createCustomer(data: {
+  establishmentId: number;
+  name: string;
+  phone: string;
+  normalizedPhone: string;
+  email?: string | null;
+  notes?: string | null;
+  isActive?: boolean;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(customers).values({
+    establishmentId: data.establishmentId,
+    name: data.name,
+    phone: data.phone,
+    normalizedPhone: data.normalizedPhone,
+    email: data.email ?? null,
+    notes: data.notes ?? null,
+    isActive: data.isActive ?? true,
+  });
+
+  const insertId = result[0].insertId;
+  return getCustomerById(insertId, data.establishmentId);
+}
+
+export async function updateCustomer(
+  id: number,
+  establishmentId: number,
+  data: {
+    name?: string;
+    phone?: string;
+    normalizedPhone?: string;
+    email?: string | null;
+    notes?: string | null;
+    isActive?: boolean;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.phone !== undefined) updateData.phone = data.phone;
+  if (data.normalizedPhone !== undefined) updateData.normalizedPhone = data.normalizedPhone;
+  if (data.email !== undefined) updateData.email = data.email;
+  if (data.notes !== undefined) updateData.notes = data.notes;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+  await db
+    .update(customers)
+    .set(updateData)
+    .where(
+      and(
+        eq(customers.id, id),
+        eq(customers.establishmentId, establishmentId)
+      )
+    );
+
+  return getCustomerById(id, establishmentId);
+}
+
+export async function deactivateCustomer(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(customers)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(customers.id, id),
+        eq(customers.establishmentId, establishmentId)
+      )
+    );
+
+  return { success: true };
+}
+
+export async function countCustomersByEstablishment(establishmentId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(customers)
+    .where(
+      and(
+        eq(customers.establishmentId, establishmentId),
+        eq(customers.isActive, true)
       )
     );
 

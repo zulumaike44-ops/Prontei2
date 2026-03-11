@@ -77,3 +77,20 @@
 - [x] 13E — Frontend: link no sidebar do dashboard
 - [x] 13F — Testes vitest para blocked_times (24 testes passando, 99 total)
 - [x] 13G — Validação final e checkpoint
+
+## ETAPA 14 — Módulo de Clientes (customers)
+
+- [x] 14A — Verificar/ajustar tabela customers no schema (adicionar normalizedPhone, phone notNull)
+- [x] 14B — Decisão de negócio: rejeitar telefone duplicado com erro (opção A)
+- [x] 14B — Estratégia de normalização: remover tudo exceto dígitos
+- [x] 14C — Backend: queries CRUD de customers em server/db.ts
+- [x] 14C — Backend: rotas tRPC (list, get, create, update, delete) com busca
+- [x] 14D — Backend: validações Zod (name, phone, email, notes)
+- [x] 14D — Backend: deduplicação por normalized_phone + establishment_id
+- [x] 14D — Backend: proteção multi-tenant via resolveTenant
+- [x] 14E — Frontend: tela de clientes (/customers) com listagem e busca
+- [x] 14E — Frontend: formulário de criação/edição de cliente
+- [x] 14E — Frontend: exclusão/desativação de cliente
+- [x] 14E — Frontend: link Clientes no sidebar do dashboard
+- [x] 14F — Testes vitest para customers (CRUD, deduplicação, multi-tenant, busca) — 30 testes, 129 total
+- [x] 14G — Validação final e checkpoint

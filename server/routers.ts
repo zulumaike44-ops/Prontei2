@@ -35,6 +35,14 @@ import {
   updateBlockedTime,
   softDeleteBlockedTime,
   countBlockedTimesByEstablishment,
+  normalizePhone,
+  getCustomersByEstablishment,
+  getCustomerById,
+  getCustomerByNormalizedPhone,
+  createCustomer,
+  updateCustomer,
+  deactivateCustomer,
+  countCustomersByEstablishment,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 
@@ -909,6 +917,177 @@ export const appRouter = router({
       const establishment = await resolveTenant(ctx.user.id);
       return {
         count: await countBlockedTimesByEstablishment(establishment.id),
+      };
+    }),
+  }),
+
+  // ============================================================
+  // CUSTOMERS (protected — tenant-scoped)
+  // ============================================================
+  customer: router({
+    /** List customers with optional search and active filter */
+    list: protectedProcedure
+      .input(
+        z.object({
+          search: z.string().optional(),
+          activeOnly: z.boolean().optional().default(true),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        return getCustomersByEstablishment(establishment.id, {
+          search: input?.search,
+          activeOnly: input?.activeOnly ?? true,
+        });
+      }),
+
+    /** Get a single customer by ID */
+    get: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const customer = await getCustomerById(input.id, establishment.id);
+        if (!customer) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Cliente não encontrado.",
+          });
+        }
+        return customer;
+      }),
+
+    /** Create a new customer */
+    create: protectedProcedure
+      .input(
+        z.object({
+          name: z.string()
+            .min(2, "Nome deve ter pelo menos 2 caracteres")
+            .max(150, "Nome deve ter no máximo 150 caracteres"),
+          phone: z.string()
+            .min(8, "Telefone deve ter pelo menos 8 dígitos")
+            .max(20, "Telefone deve ter no máximo 20 caracteres"),
+          email: z.string().email("E-mail inválido").max(255).optional().or(z.literal("")),
+          notes: z.string().max(500).optional().or(z.literal("")),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // Limit: max 2000 active customers per establishment
+        const count = await countCustomersByEstablishment(establishment.id);
+        if (count >= 2000) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Limite de clientes atingido. Máximo de 2000 clientes ativos por estabelecimento.",
+          });
+        }
+
+        // Normalize phone for deduplication
+        const normalized = normalizePhone(input.phone);
+        if (normalized.length < 8) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Telefone deve conter pelo menos 8 dígitos numéricos.",
+          });
+        }
+
+        // Check for duplicate normalized_phone within same establishment
+        const existing = await getCustomerByNormalizedPhone(normalized, establishment.id);
+        if (existing) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Já existe um cliente cadastrado com este telefone neste estabelecimento.",
+          });
+        }
+
+        return createCustomer({
+          establishmentId: establishment.id,
+          name: input.name,
+          phone: input.phone.trim(),
+          normalizedPhone: normalized,
+          email: input.email || null,
+          notes: input.notes || null,
+        });
+      }),
+
+    /** Update an existing customer */
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          name: z.string().min(2).max(150).optional(),
+          phone: z.string().min(8).max(20).optional(),
+          email: z.string().email("E-mail inválido").max(255).optional().or(z.literal("")),
+          notes: z.string().max(500).optional().or(z.literal("")),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const existing = await getCustomerById(input.id, establishment.id);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Cliente não encontrado.",
+          });
+        }
+
+        const updateData: Record<string, unknown> = {};
+
+        if (input.name !== undefined) updateData.name = input.name;
+        if (input.email !== undefined) updateData.email = input.email || null;
+        if (input.notes !== undefined) updateData.notes = input.notes || null;
+        if (input.isActive !== undefined) updateData.isActive = input.isActive;
+
+        // If phone is being updated, re-normalize and check for duplicates
+        if (input.phone !== undefined) {
+          const normalized = normalizePhone(input.phone);
+          if (normalized.length < 8) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Telefone deve conter pelo menos 8 dígitos numéricos.",
+            });
+          }
+
+          // Check duplicate only if normalized phone actually changed
+          if (normalized !== existing.normalizedPhone) {
+            const dup = await getCustomerByNormalizedPhone(normalized, establishment.id);
+            if (dup) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: "Já existe um cliente cadastrado com este telefone neste estabelecimento.",
+              });
+            }
+          }
+
+          updateData.phone = input.phone.trim();
+          updateData.normalizedPhone = normalized;
+        }
+
+        return updateCustomer(input.id, establishment.id, updateData);
+      }),
+
+    /** Deactivate a customer (soft delete via isActive=false) */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const existing = await getCustomerById(input.id, establishment.id);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Cliente não encontrado.",
+          });
+        }
+
+        return deactivateCustomer(input.id, establishment.id);
+      }),
+
+    /** Count active customers for current tenant */
+    count: protectedProcedure.query(async ({ ctx }) => {
+      const establishment = await resolveTenant(ctx.user.id);
+      return {
+        count: await countCustomersByEstablishment(establishment.id),
       };
     }),
   }),

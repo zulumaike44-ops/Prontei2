@@ -30,6 +30,7 @@ import {
   Users,
   Scissors,
   Ban,
+  UserRound,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -41,6 +42,7 @@ const menuItems = [
   { icon: Users, label: "Profissionais", path: "/professionals" },
   { icon: Scissors, label: "Serviços", path: "/services" },
   { icon: Ban, label: "Bloqueios", path: "/blocked-times" },
+  { icon: UserRound, label: "Clientes", path: "/customers" },
   { icon: Settings, label: "Configurações", path: "/settings" },
 ];
 

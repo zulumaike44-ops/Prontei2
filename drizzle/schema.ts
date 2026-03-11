@@ -231,16 +231,18 @@ export const customers = mysqlTable("customers", {
   id: int("id").autoincrement().primaryKey(),
   establishmentId: int("establishmentId").notNull(),
   name: varchar("name", { length: 150 }).notNull(),
-  phone: varchar("phone", { length: 20 }),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  normalizedPhone: varchar("normalizedPhone", { length: 20 }).notNull(),
   email: varchar("email", { length: 255 }),
   notes: text("notes"),
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
-  uniqueIndex("uq_customer_phone").on(table.establishmentId, table.phone),
+  uniqueIndex("uq_customer_normalized_phone").on(table.establishmentId, table.normalizedPhone),
   index("idx_customers_establishment").on(table.establishmentId),
   index("idx_customers_name").on(table.establishmentId, table.name),
+  index("idx_customers_active").on(table.establishmentId, table.isActive),
 ]);
 
 export type Customer = typeof customers.$inferSelect;

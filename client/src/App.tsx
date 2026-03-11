@@ -12,6 +12,7 @@ import Professionals from "./pages/Professionals";
 import Services from "./pages/Services";
 import WorkingHours from "./pages/WorkingHours";
 import BlockedTimes from "./pages/BlockedTimes";
+import Customers from "./pages/Customers";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/services" component={Services} />
       <Route path="/working-hours/:id" component={WorkingHours} />
       <Route path="/blocked-times" component={BlockedTimes} />
+      <Route path="/customers" component={Customers} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
