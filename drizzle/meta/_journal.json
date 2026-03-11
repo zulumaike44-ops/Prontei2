@@ -15,6 +15,13 @@
       "when": 1772877017980,
       "tag": "0001_wild_marvel_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1773190416362,
+      "tag": "0002_melted_wolfsbane",
+      "breakpoints": true
     }
   ]
 }

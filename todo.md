@@ -62,3 +62,18 @@
 - [x] R3 — Alterações no backend (nenhuma referência encontrada no backend)
 - [x] R4 — Alterações em documentação e testes (ideas.md, asset-urls.md, DECISAO-STACK.md, todo.md)
 - [x] R5 — Validação final: 0 referências residuais em código visível, 75 testes passando, checkpoint salvo
+
+## ETAPA 13 — Módulo de Bloqueios de Horário (blocked_times)
+
+- [x] 13A — Verificar tabela blocked_times no schema Drizzle (adicionados title e isActive)
+- [x] 13B — Decisões de negócio: sobreposição permitida, edição de antigos permitida, soft delete via isActive
+- [x] 13B — Backend: queries CRUD de blocked_times em server/db.ts
+- [x] 13C — Backend: rotas tRPC (list, get, create, update, delete) com filtros
+- [x] 13D — Backend: validações Zod (title, datas, isAllDay, professionalId)
+- [x] 13D — Backend: validação cross-tenant de professionalId
+- [x] 13E — Frontend: tela de bloqueios (/blocked-times) com listagem e filtros
+- [x] 13E — Frontend: formulário de criação/edição de bloqueio
+- [x] 13E — Frontend: exclusão/desativação de bloqueio
+- [x] 13E — Frontend: link no sidebar do dashboard
+- [x] 13F — Testes vitest para blocked_times (24 testes passando, 99 total)
+- [x] 13G — Validação final e checkpoint

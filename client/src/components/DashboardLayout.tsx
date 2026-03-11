@@ -29,6 +29,7 @@ import {
   Calendar,
   Users,
   Scissors,
+  Ban,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -39,6 +40,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Painel", path: "/dashboard" },
   { icon: Users, label: "Profissionais", path: "/professionals" },
   { icon: Scissors, label: "Serviços", path: "/services" },
+  { icon: Ban, label: "Bloqueios", path: "/blocked-times" },
   { icon: Settings, label: "Configurações", path: "/settings" },
 ];
 

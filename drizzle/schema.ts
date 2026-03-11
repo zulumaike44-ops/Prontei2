@@ -210,10 +210,12 @@ export const blockedTimes = mysqlTable("blocked_times", {
   id: int("id").autoincrement().primaryKey(),
   establishmentId: int("establishmentId").notNull(),
   professionalId: int("professionalId"),
+  title: varchar("title", { length: 200 }).notNull(),
+  reason: varchar("reason", { length: 255 }),
   startDatetime: datetime("startDatetime").notNull(),
   endDatetime: datetime("endDatetime").notNull(),
-  reason: varchar("reason", { length: 255 }),
   isAllDay: boolean("isAllDay").default(false).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [

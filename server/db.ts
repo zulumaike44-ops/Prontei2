@@ -1,4 +1,4 @@
-import { eq, and, isNull, asc, desc, sql } from "drizzle-orm";
+import { eq, and, isNull, asc, desc, sql, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -10,6 +10,7 @@ import {
   services,
   professionalServices,
   workingHours,
+  blockedTimes,
   type InsertEstablishment,
   type InsertProfessional,
   type InsertService,
@@ -669,4 +670,164 @@ export async function saveWeeklySchedule(
 
   // Return the saved schedule
   return getWorkingHoursByProfessional(professionalId, establishmentId);
+}
+
+// ============================================================
+// BLOCKED_TIMES QUERIES
+// ============================================================
+
+export async function getBlockedTimesByEstablishment(
+  establishmentId: number,
+  filters?: {
+    professionalId?: number;
+    dateFrom?: Date;
+    dateTo?: Date;
+    activeOnly?: boolean;
+  }
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = [eq(blockedTimes.establishmentId, establishmentId)];
+
+  if (filters?.professionalId !== undefined) {
+    conditions.push(eq(blockedTimes.professionalId, filters.professionalId));
+  }
+
+  if (filters?.dateFrom) {
+    conditions.push(gte(blockedTimes.endDatetime, filters.dateFrom));
+  }
+
+  if (filters?.dateTo) {
+    conditions.push(lte(blockedTimes.startDatetime, filters.dateTo));
+  }
+
+  if (filters?.activeOnly) {
+    conditions.push(eq(blockedTimes.isActive, true));
+  }
+
+  return db
+    .select()
+    .from(blockedTimes)
+    .where(and(...conditions))
+    .orderBy(desc(blockedTimes.startDatetime));
+}
+
+export async function getBlockedTimeById(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(blockedTimes)
+    .where(
+      and(
+        eq(blockedTimes.id, id),
+        eq(blockedTimes.establishmentId, establishmentId)
+      )
+    )
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createBlockedTime(data: {
+  establishmentId: number;
+  professionalId?: number | null;
+  title: string;
+  reason?: string | null;
+  startDatetime: Date;
+  endDatetime: Date;
+  isAllDay: boolean;
+  isActive?: boolean;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(blockedTimes).values({
+    establishmentId: data.establishmentId,
+    professionalId: data.professionalId ?? null,
+    title: data.title,
+    reason: data.reason ?? null,
+    startDatetime: data.startDatetime,
+    endDatetime: data.endDatetime,
+    isAllDay: data.isAllDay,
+    isActive: data.isActive ?? true,
+  });
+
+  const insertId = result[0].insertId;
+  return getBlockedTimeById(insertId, data.establishmentId);
+}
+
+export async function updateBlockedTime(
+  id: number,
+  establishmentId: number,
+  data: {
+    professionalId?: number | null;
+    title?: string;
+    reason?: string | null;
+    startDatetime?: Date;
+    endDatetime?: Date;
+    isAllDay?: boolean;
+    isActive?: boolean;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (data.professionalId !== undefined) updateData.professionalId = data.professionalId;
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.reason !== undefined) updateData.reason = data.reason;
+  if (data.startDatetime !== undefined) updateData.startDatetime = data.startDatetime;
+  if (data.endDatetime !== undefined) updateData.endDatetime = data.endDatetime;
+  if (data.isAllDay !== undefined) updateData.isAllDay = data.isAllDay;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+  await db
+    .update(blockedTimes)
+    .set(updateData)
+    .where(
+      and(
+        eq(blockedTimes.id, id),
+        eq(blockedTimes.establishmentId, establishmentId)
+      )
+    );
+
+  return getBlockedTimeById(id, establishmentId);
+}
+
+export async function softDeleteBlockedTime(id: number, establishmentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(blockedTimes)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(blockedTimes.id, id),
+        eq(blockedTimes.establishmentId, establishmentId)
+      )
+    );
+
+  return { success: true };
+}
+
+export async function countBlockedTimesByEstablishment(establishmentId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(blockedTimes)
+    .where(
+      and(
+        eq(blockedTimes.establishmentId, establishmentId),
+        eq(blockedTimes.isActive, true)
+      )
+    );
+
+  return Number(result[0]?.count ?? 0);
 }

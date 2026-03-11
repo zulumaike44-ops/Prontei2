@@ -29,6 +29,12 @@ import {
   removeProfessionalService,
   getWorkingHoursByProfessional,
   saveWeeklySchedule,
+  getBlockedTimesByEstablishment,
+  getBlockedTimeById,
+  createBlockedTime,
+  updateBlockedTime,
+  softDeleteBlockedTime,
+  countBlockedTimesByEstablishment,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 
@@ -701,6 +707,210 @@ export const appRouter = router({
           normalized
         );
       }),
+  }),
+
+  // ============================================================
+  // BLOCKED TIMES (protected — tenant-scoped)
+  // ============================================================
+  blockedTime: router({
+    /** List blocked times with optional filters */
+    list: protectedProcedure
+      .input(
+        z.object({
+          professionalId: z.number().int().positive().optional(),
+          dateFrom: z.string().optional(),
+          dateTo: z.string().optional(),
+          activeOnly: z.boolean().optional().default(true),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // If professionalId provided, verify it belongs to tenant
+        if (input?.professionalId) {
+          const prof = await getProfessionalById(input.professionalId, establishment.id);
+          if (!prof) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Profissional não encontrado.",
+            });
+          }
+        }
+
+        return getBlockedTimesByEstablishment(establishment.id, {
+          professionalId: input?.professionalId,
+          dateFrom: input?.dateFrom ? new Date(input.dateFrom) : undefined,
+          dateTo: input?.dateTo ? new Date(input.dateTo) : undefined,
+          activeOnly: input?.activeOnly ?? true,
+        });
+      }),
+
+    /** Get a single blocked time by ID */
+    get: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const blocked = await getBlockedTimeById(input.id, establishment.id);
+        if (!blocked) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Bloqueio não encontrado.",
+          });
+        }
+        return blocked;
+      }),
+
+    /** Create a new blocked time */
+    create: protectedProcedure
+      .input(
+        z.object({
+          professionalId: z.number().int().positive().optional(),
+          title: z.string().min(1, "Título é obrigatório").max(200),
+          reason: z.string().max(255).optional().or(z.literal("")),
+          startDatetime: z.string().min(1, "Data/hora de início é obrigatória"),
+          endDatetime: z.string().min(1, "Data/hora de término é obrigatória"),
+          isAllDay: z.boolean().default(false),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        // Validate professionalId belongs to tenant
+        if (input.professionalId) {
+          const prof = await getProfessionalById(input.professionalId, establishment.id);
+          if (!prof) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Profissional não encontrado neste estabelecimento.",
+            });
+          }
+        }
+
+        const startDt = new Date(input.startDatetime);
+        const endDt = new Date(input.endDatetime);
+
+        // Validate dates
+        if (isNaN(startDt.getTime()) || isNaN(endDt.getTime())) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Datas inválidas.",
+          });
+        }
+
+        if (endDt <= startDt) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Data/hora de término deve ser posterior à de início.",
+          });
+        }
+
+        // Limit: max 200 active blocked times per establishment
+        const count = await countBlockedTimesByEstablishment(establishment.id);
+        if (count >= 200) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Limite de bloqueios atingido. Máximo de 200 bloqueios ativos por estabelecimento.",
+          });
+        }
+
+        return createBlockedTime({
+          establishmentId: establishment.id,
+          professionalId: input.professionalId ?? null,
+          title: input.title,
+          reason: input.reason || null,
+          startDatetime: startDt,
+          endDatetime: endDt,
+          isAllDay: input.isAllDay,
+        });
+      }),
+
+    /** Update a blocked time */
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          professionalId: z.number().int().positive().nullable().optional(),
+          title: z.string().min(1).max(200).optional(),
+          reason: z.string().max(255).optional().or(z.literal("")),
+          startDatetime: z.string().optional(),
+          endDatetime: z.string().optional(),
+          isAllDay: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+
+        const existing = await getBlockedTimeById(input.id, establishment.id);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Bloqueio não encontrado.",
+          });
+        }
+
+        // Validate professionalId if changing
+        if (input.professionalId !== undefined && input.professionalId !== null) {
+          const prof = await getProfessionalById(input.professionalId, establishment.id);
+          if (!prof) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Profissional não encontrado neste estabelecimento.",
+            });
+          }
+        }
+
+        // Validate dates if provided
+        const startDt = input.startDatetime ? new Date(input.startDatetime) : existing.startDatetime;
+        const endDt = input.endDatetime ? new Date(input.endDatetime) : existing.endDatetime;
+
+        if (input.startDatetime && isNaN(new Date(input.startDatetime).getTime())) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Data de início inválida." });
+        }
+        if (input.endDatetime && isNaN(new Date(input.endDatetime).getTime())) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Data de término inválida." });
+        }
+
+        if (endDt <= startDt) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Data/hora de término deve ser posterior à de início.",
+          });
+        }
+
+        const updateData: Record<string, unknown> = {};
+        if (input.professionalId !== undefined) updateData.professionalId = input.professionalId;
+        if (input.title !== undefined) updateData.title = input.title;
+        if (input.reason !== undefined) updateData.reason = input.reason || null;
+        if (input.startDatetime !== undefined) updateData.startDatetime = startDt;
+        if (input.endDatetime !== undefined) updateData.endDatetime = endDt;
+        if (input.isAllDay !== undefined) updateData.isAllDay = input.isAllDay;
+
+        return updateBlockedTime(input.id, establishment.id, updateData);
+      }),
+
+    /** Soft delete a blocked time */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const establishment = await resolveTenant(ctx.user.id);
+        const existing = await getBlockedTimeById(input.id, establishment.id);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Bloqueio não encontrado.",
+          });
+        }
+
+        return softDeleteBlockedTime(input.id, establishment.id);
+      }),
+
+    /** Count active blocked times for current tenant */
+    count: protectedProcedure.query(async ({ ctx }) => {
+      const establishment = await resolveTenant(ctx.user.id);
+      return {
+        count: await countBlockedTimesByEstablishment(establishment.id),
+      };
+    }),
   }),
 });
 
