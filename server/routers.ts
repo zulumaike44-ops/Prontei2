@@ -1568,12 +1568,12 @@ export const appRouter = router({
         return getMessagesByConversation(input.conversationId, input.limit ?? 100);
       }),
 
-    /** Send a manual reply to a conversation */
+    /** Send a manual reply to a conversation via Meta Cloud API */
     reply: protectedProcedure
       .input(
         z.object({
           conversationId: z.number().int().positive(),
-          message: z.string().min(1, "Mensagem n\u00e3o pode ser vazia").max(4096),
+          message: z.string().min(1, "Mensagem não pode ser vazia").max(4096),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1583,30 +1583,46 @@ export const appRouter = router({
         if (!conv) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: "Conversa n\u00e3o encontrada.",
+            message: "Conversa não encontrada.",
           });
         }
 
         // Get settings for sending
         const settings = await getWhatsappSettings(establishment.id);
 
-        // Send via stub
+        // Validate credentials before attempting send
+        const { validateSendCredentials } = await import("./whatsappWebhook");
+        const validation = validateSendCredentials(settings?.phoneNumberId, settings?.accessToken);
+        if (!validation.valid) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Configuração incompleta: ${validation.errors.join("; ")}`,
+          });
+        }
+
+        // Send via Meta Cloud API REAL
         const result = await sendWhatsappMessage(
-          settings?.phoneNumberId ?? "",
-          settings?.accessToken ?? "",
+          settings!.phoneNumberId!,
+          settings!.accessToken!,
           conv.phone,
           input.message
         );
 
-        // Register outbound message
+        // Register outbound message with real external ID or error
         const msg = await createMessage({
           conversationId: input.conversationId,
           direction: "outbound",
           messageType: "text",
           content: input.message,
-          externalMessageId: result.messageId,
+          externalMessageId: result.messageId || null,
           status: result.success ? "sent" : "failed",
+          metadata: result.success ? undefined : { error: result.error, errorCode: result.errorCode },
         });
+
+        // If send failed, inform the user but still return the message record
+        if (!result.success) {
+          console.warn(`[WhatsApp Reply] Envio falhou para ${conv.phone}: ${result.error}`);
+        }
 
         return msg;
       }),

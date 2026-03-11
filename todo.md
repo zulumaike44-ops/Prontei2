@@ -153,3 +153,12 @@
 - [x] 19F — Frontend: links no sidebar do dashboard
 - [x] 19G — Testes vitest para módulo WhatsApp — 38 testes, 252 total
 - [x] 19H — Validação final e checkpoint
+
+## ETAPA 19.1 — Envio Real via Meta WhatsApp Cloud API
+- [x] 19.1A — Substituir stub sendWhatsappMessage por chamada real à Meta Cloud API v21.0
+- [x] 19.1B — Tratar erros de autenticação, configuração e rede no envio
+- [x] 19.1C — Salvar external_message_id real retornado pela API
+- [x] 19.1D — Validar webhook_verify_token no GET de verificação (busca no banco + fallback env)
+- [x] 19.1E — Credenciais gerenciadas 100% pelo painel (whatsapp_settings no banco, sem env vars separadas)
+- [x] 19.1F — Atualizar testes vitest — 261 testes passando (9 novos: validateSendCredentials + sendWhatsappMessage real)
+- [x] 19.1G — Validação final, checkpoint e passo a passo de teste manual

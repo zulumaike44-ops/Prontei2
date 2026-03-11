@@ -424,20 +424,117 @@ describe("whatsapp router", () => {
 // ============================================================
 
 describe("whatsapp webhook helpers", () => {
-  describe("sendWhatsappMessage (stub)", () => {
-    it("returns success with mock message ID", async () => {
+  describe("validateSendCredentials", () => {
+    it("returns valid when both credentials are present", async () => {
+      const { validateSendCredentials } = await import("./whatsappWebhook");
+
+      const result = validateSendCredentials("123456789", "EAABx...");
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("returns invalid when phoneNumberId is missing", async () => {
+      const { validateSendCredentials } = await import("./whatsappWebhook");
+
+      const result = validateSendCredentials("", "EAABx...");
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toContain("phone_number_id");
+    });
+
+    it("returns invalid when accessToken is missing", async () => {
+      const { validateSendCredentials } = await import("./whatsappWebhook");
+
+      const result = validateSendCredentials("123456789", "");
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toContain("access_token");
+    });
+
+    it("returns invalid when both are missing", async () => {
+      const { validateSendCredentials } = await import("./whatsappWebhook");
+
+      const result = validateSendCredentials(null, null);
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBe(2);
+    });
+
+    it("returns invalid when both are undefined", async () => {
+      const { validateSendCredentials } = await import("./whatsappWebhook");
+
+      const result = validateSendCredentials(undefined, undefined);
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBe(2);
+    });
+
+    it("returns invalid when values are whitespace only", async () => {
+      const { validateSendCredentials } = await import("./whatsappWebhook");
+
+      const result = validateSendCredentials("  ", "  ");
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBe(2);
+    });
+  });
+
+  describe("sendWhatsappMessage (real API)", () => {
+    it("returns error when credentials are empty", async () => {
       const { sendWhatsappMessage } = await import("./whatsappWebhook");
 
       const result = await sendWhatsappMessage(
-        "phone_number_id_123",
-        "access_token_abc",
+        "",
+        "",
         "5511999998888",
         "Olá, teste!"
       );
 
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBeDefined();
-      expect(result.messageId.startsWith("mock_")).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe("INVALID_CREDENTIALS");
+      expect(result.error).toBeDefined();
+    });
+
+    it("returns error when phoneNumberId is empty", async () => {
+      const { sendWhatsappMessage } = await import("./whatsappWebhook");
+
+      const result = await sendWhatsappMessage(
+        "",
+        "valid_token",
+        "5511999998888",
+        "Olá!"
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe("INVALID_CREDENTIALS");
+    });
+
+    it("returns error when accessToken is empty", async () => {
+      const { sendWhatsappMessage } = await import("./whatsappWebhook");
+
+      const result = await sendWhatsappMessage(
+        "valid_phone_id",
+        "",
+        "5511999998888",
+        "Olá!"
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe("INVALID_CREDENTIALS");
+    });
+
+    it("attempts real API call with valid credentials (will fail with fake token)", async () => {
+      const { sendWhatsappMessage } = await import("./whatsappWebhook");
+
+      const result = await sendWhatsappMessage(
+        "fake_phone_number_id",
+        "fake_access_token",
+        "5511999998888",
+        "Teste de envio"
+      );
+
+      // With fake credentials, the API should return an error (not INVALID_CREDENTIALS)
+      // It should be a real API error or network error
+      expect(result.success).toBe(false);
+      expect(result.errorCode).not.toBe("INVALID_CREDENTIALS");
+      expect(result.error).toBeDefined();
     });
   });
 

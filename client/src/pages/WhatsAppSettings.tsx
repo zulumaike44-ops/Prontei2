@@ -276,7 +276,7 @@ export default function WhatsAppSettings() {
                 <li>Ative a integração e salve</li>
               </ol>
               <p className="mt-2 text-xs opacity-80">
-                Nota: O envio de mensagens está em modo de teste (stub). As mensagens são registradas no sistema mas não são enviadas ao WhatsApp real.
+                O envio de mensagens usa a Meta Cloud API v21.0. Preencha corretamente o Phone Number ID e o Access Token para que as respostas sejam enviadas ao WhatsApp real.
               </p>
             </div>
           </div>
