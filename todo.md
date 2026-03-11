@@ -111,3 +111,15 @@
 - [x] 15F — Frontend: link Agendamentos no sidebar do dashboard
 - [x] 15G — Testes vitest para availability engine e appointments — 50 testes, 179 total
 - [x] 15H — Validação final e checkpoint
+
+## ETAPA 16 — Agenda Visual do MVP
+- [x] 16A — Analisar contexto atual e definir escopo da agenda
+- [x] 16B — Verificar endpoints existentes (appointment.list com filtros dateFrom/dateTo/professionalId)
+- [x] 16C — Frontend: tela /dashboard/agenda com view DIA (lista cronológica)
+- [x] 16C — Frontend: view SEMANA (agrupamento por dia)
+- [x] 16C — Frontend: cores de status (pending, confirmed, cancelled, completed, no_show)
+- [x] 16D — Frontend: filtro por profissional
+- [x] 16D — Frontend: interações (abrir detalhes, alterar status, cancelar)
+- [x] 16D — Frontend: rota e link no sidebar
+- [x] 16E — Testes vitest para agenda (renderização, filtros, status, cancelamento, multi-tenant) — 23 testes, 202 total
+- [x] 16F — Validação final e checkpoint

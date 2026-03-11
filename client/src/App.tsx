@@ -14,6 +14,7 @@ import WorkingHours from "./pages/WorkingHours";
 import BlockedTimes from "./pages/BlockedTimes";
 import Customers from "./pages/Customers";
 import Appointments from "./pages/Appointments";
+import Agenda from "./pages/Agenda";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/blocked-times" component={BlockedTimes} />
       <Route path="/customers" component={Customers} />
       <Route path="/appointments" component={Appointments} />
+      <Route path="/dashboard/agenda" component={Agenda} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

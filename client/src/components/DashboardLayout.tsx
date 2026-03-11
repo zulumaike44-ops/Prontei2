@@ -27,6 +27,7 @@ import {
   PanelLeft,
   Settings,
   Calendar,
+  CalendarDays,
   Users,
   Scissors,
   Ban,
@@ -44,6 +45,7 @@ const menuItems = [
   { icon: Ban, label: "Bloqueios", path: "/blocked-times" },
   { icon: UserRound, label: "Clientes", path: "/customers" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
+  { icon: CalendarDays, label: "Agenda", path: "/dashboard/agenda" },
   { icon: Settings, label: "Configurações", path: "/settings" },
 ];
 
