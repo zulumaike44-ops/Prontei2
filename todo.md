@@ -189,3 +189,9 @@
 - [x] W5 — Segurança: getSettings removido, substituido por getConnectionStatus (sem dados sensíveis)
 - [x] W6 — Testes vitest (estados, ocultação, multi-tenant, teste de conexão) — 270 testes passando
 - [x] W7 — Validação final e checkpoint
+
+## Configuração de Credenciais Meta (novo app)
+- [x] Receber META_APP_ID, META_APP_SECRET e META_CONFIG_ID do novo app Prontei
+- [x] Salvar credenciais como secrets no projeto via webdev_request_secrets
+- [x] Teste vitest validando formato e presença das 3 credenciais (4 testes, 283 total)
+- [x] Reiniciar servidor para aplicar novas variáveis de ambiente
