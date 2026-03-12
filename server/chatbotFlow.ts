@@ -1032,15 +1032,16 @@ export async function sendChatbotReply(
       return false;
     }
 
-    const validation = validateSendCredentials(settings.phoneNumberId, settings.accessToken);
+    const validation = validateSendCredentials(settings.instanceId, settings.instanceToken);
     if (!validation.valid) {
       console.warn(`[Chatbot] Credenciais inválidas: ${validation.errors.join("; ")}`);
       return false;
     }
 
     const result = await sendWhatsappMessage(
-      settings.phoneNumberId!,
-      settings.accessToken!,
+      settings.instanceId!,
+      settings.instanceToken!,
+      settings.clientToken,
       recipientPhone,
       messageText
     );

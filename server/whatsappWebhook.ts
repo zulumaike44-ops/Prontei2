@@ -1,33 +1,33 @@
 /**
- * WHATSAPP WEBHOOK — Handler para recebimento e envio de mensagens
+ * WHATSAPP WEBHOOK — Handler para recebimento e envio de mensagens via Z-API
  *
- * Integração REAL com Meta WhatsApp Cloud API v21.0
+ * Integração com Z-API (https://z-api.io)
+ * Base URL: https://api.z-api.io/instances/{instanceId}/token/{instanceToken}
  *
  * Estratégia de identificação do tenant no webhook:
- * O webhook recebe payload do provider (Meta Cloud API) que inclui o phone_number_id
- * do número de destino. Usamos esse ID para localizar o whatsapp_settings e,
+ * O webhook recebe payload do Z-API que inclui o instanceId.
+ * Usamos esse ID para localizar o whatsapp_settings e,
  * consequentemente, o establishment_id.
  *
  * Fluxo INBOUND:
- * 1. Recebe payload → extrai phone_number_id do destino
- * 2. Localiza whatsapp_settings pelo phoneNumberId → resolve establishment
+ * 1. Recebe payload → extrai instanceId
+ * 2. Localiza whatsapp_settings pelo instanceId → resolve establishment
  * 3. Normaliza telefone do remetente
- * 4. Localiza ou cria customer pelo telefone normalizado (opção B)
+ * 4. Localiza ou cria customer pelo telefone normalizado
  * 5. Encontra ou cria conversation
  * 6. Registra mensagem inbound
- * 7. Se autoReply habilitado e conversa nova → envia resposta automática REAL
+ * 7. Se autoReply habilitado e conversa nova → envia resposta automática
  *
  * Fluxo OUTBOUND:
- * 1. Valida credenciais (accessToken, phoneNumberId)
- * 2. Chama POST https://graph.facebook.com/v21.0/{phoneNumberId}/messages
- * 3. Extrai external_message_id real da resposta
+ * 1. Valida credenciais (instanceId, instanceToken)
+ * 2. Chama POST https://api.z-api.io/instances/{id}/token/{token}/send-text
+ * 3. Extrai messageId real da resposta
  * 4. Trata erros de autenticação, configuração e rede
  */
 
 import type { Request, Response } from "express";
-import crypto from "crypto";
 import {
-  getSettingsByPhoneNumber,
+  getSettingsByInstanceId,
   findOrCreateConversation,
   createMessage,
   getWhatsappSettings,
@@ -41,64 +41,82 @@ import {
 import { handleChatbotFlow, sendChatbotReply } from "./chatbotFlow";
 
 // ============================================================
-// META WHATSAPP CLOUD API — Envio REAL de mensagens
+// Z-API — Envio REAL de mensagens
 // ============================================================
 
-const META_API_VERSION = "v21.0";
-const META_GRAPH_URL = `https://graph.facebook.com/${META_API_VERSION}`;
+const ZAPI_BASE_URL = "https://api.z-api.io/instances";
 
 /**
- * Erros possíveis no envio de mensagem ao WhatsApp.
+ * Erros possíveis no envio de mensagem ao WhatsApp via Z-API.
  */
 export class WhatsAppSendError extends Error {
   public readonly statusCode: number;
   public readonly errorCode: string;
-  public readonly errorSubcode: string;
 
-  constructor(message: string, statusCode: number, errorCode: string, errorSubcode: string = "") {
+  constructor(message: string, statusCode: number, errorCode: string) {
     super(message);
     this.name = "WhatsAppSendError";
     this.statusCode = statusCode;
     this.errorCode = errorCode;
-    this.errorSubcode = errorSubcode;
   }
 }
 
 /**
- * Valida que as credenciais necessárias para envio estão presentes.
- * Retorna um objeto com os erros encontrados, ou null se tudo OK.
+ * Valida que as credenciais Z-API necessárias para envio estão presentes.
  */
 export function validateSendCredentials(
-  phoneNumberId: string | null | undefined,
-  accessToken: string | null | undefined
+  instanceId: string | null | undefined,
+  instanceToken: string | null | undefined
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  if (!phoneNumberId || phoneNumberId.trim() === "") {
-    errors.push("phone_number_id não configurado. Preencha nas configurações do WhatsApp.");
+  if (!instanceId || instanceId.trim() === "") {
+    errors.push("Instance ID não configurado. Preencha nas configurações do WhatsApp.");
   }
 
-  if (!accessToken || accessToken.trim() === "") {
-    errors.push("access_token não configurado. Preencha nas configurações do WhatsApp.");
+  if (!instanceToken || instanceToken.trim() === "") {
+    errors.push("Instance Token não configurado. Preencha nas configurações do WhatsApp.");
   }
 
   return { valid: errors.length === 0, errors };
 }
 
 /**
- * Envia uma mensagem de texto ao WhatsApp via Meta Cloud API v21.0.
+ * Monta a URL base da Z-API para uma instância.
+ */
+function buildZApiUrl(instanceId: string, instanceToken: string, endpoint: string): string {
+  return `${ZAPI_BASE_URL}/${instanceId}/token/${instanceToken}/${endpoint}`;
+}
+
+/**
+ * Monta os headers padrão para chamadas à Z-API.
+ */
+function buildZApiHeaders(clientToken?: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (clientToken) {
+    headers["Client-Token"] = clientToken;
+  }
+  return headers;
+}
+
+/**
+ * Envia uma mensagem de texto ao WhatsApp via Z-API.
  *
- * Endpoint: POST https://graph.facebook.com/v21.0/{phone_number_id}/messages
+ * Endpoint: POST https://api.z-api.io/instances/{instanceId}/token/{instanceToken}/send-text
  *
- * @param phoneNumberId - ID do número de telefone no Meta Business (não é o número em si)
- * @param accessToken - Token de acesso permanente ou temporário da Meta
+ * @param instanceId - ID da instância Z-API
+ * @param instanceToken - Token da instância Z-API
+ * @param clientToken - Token de segurança da conta Z-API (opcional)
  * @param recipientPhone - Número do destinatário no formato internacional (ex: 5511999998888)
  * @param messageText - Texto da mensagem a enviar
- * @returns Objeto com success, messageId (real da Meta) e detalhes de erro se houver
+ * @returns Objeto com success, messageId e detalhes de erro se houver
  */
 export async function sendWhatsappMessage(
-  phoneNumberId: string,
-  accessToken: string,
+  instanceId: string,
+  instanceToken: string,
+  clientToken: string | null | undefined,
   recipientPhone: string,
   messageText: string
 ): Promise<{
@@ -108,10 +126,10 @@ export async function sendWhatsappMessage(
   errorCode?: string;
 }> {
   // 1. Validar credenciais
-  const validation = validateSendCredentials(phoneNumberId, accessToken);
+  const validation = validateSendCredentials(instanceId, instanceToken);
   if (!validation.valid) {
     const errorMsg = validation.errors.join("; ");
-    console.error(`[WhatsApp API] Credenciais inválidas: ${errorMsg}`);
+    console.error(`[Z-API] Credenciais inválidas: ${errorMsg}`);
     return {
       success: false,
       messageId: "",
@@ -120,29 +138,20 @@ export async function sendWhatsappMessage(
     };
   }
 
-  // 2. Montar payload da Meta Cloud API
-  const url = `${META_GRAPH_URL}/${phoneNumberId}/messages`;
+  // 2. Montar URL e payload
+  const url = buildZApiUrl(instanceId, instanceToken, "send-text");
   const payload = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to: recipientPhone,
-    type: "text",
-    text: {
-      preview_url: false,
-      body: messageText,
-    },
+    phone: recipientPhone,
+    message: messageText,
   };
 
-  console.log(`[WhatsApp API] Enviando mensagem para ${recipientPhone} via ${url}`);
+  console.log(`[Z-API] Enviando mensagem para ${recipientPhone} via ${url}`);
 
   try {
-    // 3. Chamar a API real da Meta
+    // 3. Chamar a API Z-API
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+      headers: buildZApiHeaders(clientToken),
       body: JSON.stringify(payload),
     });
 
@@ -150,12 +159,11 @@ export async function sendWhatsappMessage(
 
     // 4. Tratar resposta
     if (response.ok) {
-      // Sucesso — extrair message ID real
       const externalMessageId =
-        responseBody?.messages?.[0]?.id ?? `meta_${Date.now()}`;
+        responseBody?.messageId ?? responseBody?.id ?? `zapi_${Date.now()}`;
 
       console.log(
-        `[WhatsApp API] Mensagem enviada com sucesso. ID: ${externalMessageId}, para: ${recipientPhone}`
+        `[Z-API] Mensagem enviada com sucesso. ID: ${externalMessageId}, para: ${recipientPhone}`
       );
 
       return {
@@ -163,28 +171,20 @@ export async function sendWhatsappMessage(
         messageId: externalMessageId,
       };
     } else {
-      // Erro da API — extrair detalhes
-      const metaError = responseBody?.error;
-      const errorMessage = metaError?.message ?? "Erro desconhecido da API Meta";
-      const errorCode = String(metaError?.code ?? response.status);
-      const errorSubcode = String(metaError?.error_subcode ?? "");
+      const errorMessage = responseBody?.error ?? responseBody?.message ?? "Erro desconhecido da Z-API";
+      const errorCode = String(response.status);
 
       console.error(
-        `[WhatsApp API] Erro ${response.status}: ${errorMessage}`,
-        `(code: ${errorCode}, subcode: ${errorSubcode})`
+        `[Z-API] Erro ${response.status}: ${errorMessage}`
       );
 
-      // Categorizar o erro para facilitar diagnóstico
       let userFriendlyError = errorMessage;
-      if (response.status === 401 || errorCode === "190") {
+      if (response.status === 401 || response.status === 403) {
         userFriendlyError =
-          "Token de acesso inválido ou expirado. Atualize o access_token nas configurações.";
-      } else if (response.status === 400 && errorCode === "131030") {
+          "Credenciais Z-API inválidas ou expiradas. Verifique o Instance ID e Token nas configurações.";
+      } else if (response.status === 404) {
         userFriendlyError =
-          "Número do destinatário não é um número WhatsApp válido.";
-      } else if (response.status === 400 && errorCode === "131047") {
-        userFriendlyError =
-          "Mensagem não enviada: o destinatário precisa ter enviado uma mensagem nas últimas 24h (janela de conversa).";
+          "Instância Z-API não encontrada. Verifique o Instance ID.";
       } else if (response.status === 429) {
         userFriendlyError =
           "Limite de envio atingido. Aguarde alguns minutos e tente novamente.";
@@ -198,82 +198,31 @@ export async function sendWhatsappMessage(
       };
     }
   } catch (networkError: any) {
-    // 5. Erro de rede (timeout, DNS, etc.)
     const errorMsg = networkError?.message ?? "Erro de rede desconhecido";
-    console.error(`[WhatsApp API] Erro de rede ao enviar mensagem: ${errorMsg}`);
+    console.error(`[Z-API] Erro de rede ao enviar mensagem: ${errorMsg}`);
 
     return {
       success: false,
       messageId: "",
-      error: `Erro de rede ao conectar com a API do WhatsApp: ${errorMsg}`,
+      error: `Erro de rede ao conectar com a Z-API: ${errorMsg}`,
       errorCode: "NETWORK_ERROR",
     };
   }
 }
 
 // ============================================================
-// WEBHOOK VERIFICATION (GET)
+// WEBHOOK VERIFICATION (GET) — Z-API não precisa de verify
 // ============================================================
 
 /**
- * Handler para verificação do webhook pelo Meta Cloud API.
- * Meta envia GET com hub.mode, hub.verify_token e hub.challenge.
- *
- * PRIORIDADE de validação:
- * 1. Variável de ambiente WHATSAPP_WEBHOOK_VERIFY_TOKEN (global, confiável)
- * 2. Token no banco de dados (per-tenant, fallback)
- * Nunca aceita se nenhum token bater.
+ * Handler para verificação do webhook.
+ * Z-API não usa o mesmo mecanismo de verificação que a Meta.
+ * Mantemos este handler para compatibilidade, retornando 200 OK.
  */
 export async function handleWebhookVerification(req: Request, res: Response) {
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"] as string | undefined;
-  const challenge = req.query["hub.challenge"];
-
-  if (mode !== "subscribe" || !token || !challenge) {
-    console.warn("[WhatsApp Webhook] Verificação falhou — parâmetros inválidos");
-    res.status(403).send("Forbidden");
-    return;
-  }
-
-  // 1. PRIORIDADE: verificar contra variável de ambiente (global)
-  const envToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
-  if (envToken && token === envToken) {
-    console.log("[WhatsApp Webhook] Verificação aceita via env WHATSAPP_WEBHOOK_VERIFY_TOKEN");
-    res.status(200).send(challenge);
-    return;
-  }
-
-  try {
-    // 2. Fallback: verificar contra token no banco (per-tenant)
-    const { getDb } = await import("./db");
-    const db = await getDb();
-
-    if (db) {
-      const { whatsappSettings } = await import("../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-
-      const settings = await db
-        .select()
-        .from(whatsappSettings)
-        .where(eq(whatsappSettings.webhookVerifyToken, token))
-        .limit(1);
-
-      if (settings.length > 0) {
-        console.log(
-          `[WhatsApp Webhook] Verificação aceita para establishment ${settings[0].establishmentId}`
-        );
-        res.status(200).send(challenge);
-        return;
-      }
-    }
-
-    console.warn(`[WhatsApp Webhook] Token de verificação não reconhecido: ${token.slice(0, 8)}...`);
-    res.status(403).send("Forbidden — verify_token inválido");
-  } catch (error) {
-    console.error("[WhatsApp Webhook] Erro ao validar verificação:", error);
-    // SEGURANÇA: nunca aceitar em caso de erro de DB
-    res.status(500).send("Internal Server Error");
-  }
+  // Z-API não envia verificação de webhook como a Meta.
+  // Se alguém acessar via GET, retornar 200 OK.
+  res.status(200).json({ status: "ok", provider: "z-api" });
 }
 
 // ============================================================
@@ -281,163 +230,108 @@ export async function handleWebhookVerification(req: Request, res: Response) {
 // ============================================================
 
 /**
- * Handler principal para recebimento de mensagens do Meta Cloud API.
+ * Handler principal para recebimento de mensagens do Z-API.
  *
- * Payload esperado (Meta Cloud API):
+ * Payload esperado (Z-API):
  * {
- *   object: "whatsapp_business_account",
- *   entry: [{
- *     id: "WABA_ID",
- *     changes: [{
- *       value: {
- *         messaging_product: "whatsapp",
- *         metadata: { display_phone_number: "...", phone_number_id: "..." },
- *         contacts: [{ profile: { name: "..." }, wa_id: "..." }],
- *         messages: [{ id: "...", from: "...", timestamp: "...", type: "text", text: { body: "..." } }]
- *       },
- *       field: "messages"
- *     }]
- *   }]
+ *   "instanceId": "...",
+ *   "phone": "5544999999999",
+ *   "fromMe": false,
+ *   "messageId": "...",
+ *   "momment": 1632228638000,
+ *   "status": "RECEIVED",
+ *   "chatName": "name",
+ *   "senderName": "name",
+ *   "type": "ReceivedCallback",
+ *   "isGroup": false,
+ *   "text": { "message": "texto da mensagem" }
  * }
  */
-/**
- * Valida a assinatura X-Hub-Signature-256 do payload do webhook.
- * Usa META_APP_SECRET como chave HMAC-SHA256.
- */
-export function validateWebhookSignature(req: Request): boolean {
-  const signature = req.headers["x-hub-signature-256"] as string | undefined;
-  const appSecret = process.env.META_APP_SECRET;
-
-  // Se não temos o app secret configurado, logar aviso mas aceitar (modo dev)
-  if (!appSecret) {
-    console.warn("[WhatsApp Webhook] META_APP_SECRET não configurado — assinatura não validada");
-    return true;
-  }
-
-  if (!signature) {
-    console.warn("[WhatsApp Webhook] Header X-Hub-Signature-256 ausente");
-    return false;
-  }
-
-  const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
-  const expectedSignature = "sha256=" + crypto
-    .createHmac("sha256", appSecret)
-    .update(rawBody)
-    .digest("hex");
-
-  const isValid = crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
-
-  if (!isValid) {
-    console.warn("[WhatsApp Webhook] Assinatura X-Hub-Signature-256 inválida");
-  }
-
-  return isValid;
-}
-
 export async function handleWebhookMessage(req: Request, res: Response) {
-  // Responder 200 imediatamente (Meta exige resposta rápida)
+  // Responder 200 imediatamente (Z-API exige resposta rápida)
   res.status(200).json({ status: "received" });
-
-  // Validar assinatura do payload (segurança)
-  if (!validateWebhookSignature(req)) {
-    console.error("[WhatsApp Webhook] Payload rejeitado — assinatura inválida");
-    return;
-  }
 
   try {
     const body = req.body;
 
-    // Validar estrutura básica
-    if (body?.object !== "whatsapp_business_account") {
-      console.warn("[WhatsApp Webhook] Payload inválido — object não é whatsapp_business_account");
+    // Ignorar mensagens enviadas por nós mesmos
+    if (body?.fromMe === true) {
       return;
     }
 
-    const entries = body.entry || [];
-
-    for (const entry of entries) {
-      const changes = entry.changes || [];
-
-      for (const change of changes) {
-        if (change.field !== "messages") continue;
-
-        const value = change.value;
-        if (!value) continue;
-
-        const phoneNumberId = value.metadata?.phone_number_id;
-        const displayPhoneNumber = value.metadata?.display_phone_number;
-        const messages = value.messages || [];
-        const contacts = value.contacts || [];
-
-        if (!phoneNumberId || messages.length === 0) continue;
-
-        // 1. Resolver establishment pelo phoneNumberId
-        let settings = await getSettingsByPhoneNumber(phoneNumberId);
-        if (!settings && displayPhoneNumber) {
-          settings = await getSettingsByPhoneNumber(displayPhoneNumber);
-        }
-
-        if (!settings) {
-          console.warn(`[WhatsApp Webhook] Nenhum establishment encontrado para phoneNumberId: ${phoneNumberId}`);
-          continue;
-        }
-
-        if (!settings.isEnabled) {
-          console.warn(`[WhatsApp Webhook] WhatsApp desabilitado para establishment ${settings.establishmentId}`);
-          continue;
-        }
-
-        const establishmentId = settings.establishmentId;
-
-        // Processar cada mensagem
-        for (const msg of messages) {
-          await processInboundMessage(
-            establishmentId,
-            settings,
-            msg,
-            contacts
-          );
-        }
-      }
+    // Ignorar mensagens de grupo
+    if (body?.isGroup === true) {
+      return;
     }
+
+    // Ignorar status updates (delivery, read, etc.)
+    if (body?.type && body.type !== "ReceivedCallback") {
+      return;
+    }
+
+    const instanceId = body?.instanceId;
+    const senderPhone = body?.phone;
+    const messageId = body?.messageId;
+
+    if (!instanceId || !senderPhone) {
+      console.warn("[Z-API Webhook] Payload sem instanceId ou phone, ignorando");
+      return;
+    }
+
+    // 1. Resolver establishment pelo instanceId
+    const settings = await getSettingsByInstanceId(instanceId);
+
+    if (!settings) {
+      console.warn(`[Z-API Webhook] Nenhum establishment encontrado para instanceId: ${instanceId}`);
+      return;
+    }
+
+    if (!settings.isEnabled) {
+      console.warn(`[Z-API Webhook] WhatsApp desabilitado para establishment ${settings.establishmentId}`);
+      return;
+    }
+
+    const establishmentId = settings.establishmentId;
+
+    // Processar a mensagem
+    await processInboundMessage(
+      establishmentId,
+      settings,
+      body
+    );
   } catch (error) {
-    console.error("[WhatsApp Webhook] Erro ao processar payload:", error);
+    console.error("[Z-API Webhook] Erro ao processar payload:", error);
   }
 }
 
 /**
- * Processa uma mensagem inbound individual.
+ * Processa uma mensagem inbound individual do Z-API.
  */
 async function processInboundMessage(
   establishmentId: number,
   settings: NonNullable<Awaited<ReturnType<typeof getWhatsappSettings>>>,
-  msg: any,
-  contacts: any[]
+  payload: any
 ) {
   try {
-    const senderPhone = msg.from; // e.g. "5511999998888"
-    const messageId = msg.id;
-    const messageType = msg.type || "text";
-    const messageContent = extractMessageContent(msg);
-    const contactName = contacts.find((c: any) => c.wa_id === senderPhone)?.profile?.name;
+    const senderPhone = payload.phone;
+    const messageId = payload.messageId;
+    const messageType = detectMessageType(payload);
+    const messageContent = extractMessageContent(payload);
+    const contactName = payload.senderName || payload.chatName;
 
     if (!senderPhone) {
-      console.warn("[WhatsApp Webhook] Mensagem sem remetente, ignorando");
+      console.warn("[Z-API Webhook] Mensagem sem remetente, ignorando");
       return;
     }
 
     // 2. Normalizar telefone
     const normalized = normalizePhone(senderPhone);
 
-    // 3. Localizar ou criar customer (opção B)
+    // 3. Localizar ou criar customer
     let customer = await getCustomerByNormalizedPhone(normalized, establishmentId);
     let customerId: number | null = customer?.id ?? null;
 
     if (!customer) {
-      // Criar customer automaticamente
       const newCustomer = await createCustomer({
         establishmentId,
         name: contactName || `WhatsApp ${senderPhone}`,
@@ -446,7 +340,7 @@ async function processInboundMessage(
         notes: "Criado automaticamente via WhatsApp",
       });
       customerId = newCustomer?.id ?? null;
-      console.log(`[WhatsApp] Novo customer criado: ${customerId} para ${senderPhone}`);
+      console.log(`[Z-API] Novo customer criado: ${customerId} para ${senderPhone}`);
     }
 
     // 4. Encontrar ou criar conversation
@@ -465,13 +359,12 @@ async function processInboundMessage(
       content: messageContent,
       externalMessageId: messageId,
       status: "received",
-      metadata: { raw: msg, contactName },
+      metadata: { raw: payload, contactName },
     });
 
-    console.log(`[WhatsApp] Mensagem inbound registrada: conv=${conversation.id}, from=${senderPhone}`);
+    console.log(`[Z-API] Mensagem inbound registrada: conv=${conversation.id}, from=${senderPhone}`);
 
-    // 6. Chatbot de agendamento (Etapa 20)
-    // Se a mensagem é de texto, processar pelo chatbot
+    // 6. Chatbot de agendamento
     if (messageContent && messageType === "text") {
       const chatbotReply = await handleChatbotFlow(
         establishmentId,
@@ -493,43 +386,68 @@ async function processInboundMessage(
       }
     }
 
-    // 7. Fallback: Resposta automática se habilitada e conversa nova (sem chatbot)
+    // 7. Fallback: Resposta automática se habilitada e conversa nova
     if (settings.autoReplyEnabled && conversation.isNew) {
       await sendAutoReply(establishmentId, settings, conversation.id, senderPhone);
     }
   } catch (error) {
-    console.error("[WhatsApp] Erro ao processar mensagem inbound:", error);
+    console.error("[Z-API] Erro ao processar mensagem inbound:", error);
   }
 }
 
 /**
- * Extrai o conteúdo textual de uma mensagem do WhatsApp.
+ * Detecta o tipo da mensagem Z-API.
  */
-function extractMessageContent(msg: any): string | null {
-  switch (msg.type) {
-    case "text":
-      return msg.text?.body ?? null;
-    case "image":
-      return msg.image?.caption ?? "[Imagem]";
-    case "video":
-      return msg.video?.caption ?? "[Vídeo]";
-    case "audio":
-      return "[Áudio]";
-    case "document":
-      return msg.document?.filename ?? "[Documento]";
-    case "location":
-      return `[Localização: ${msg.location?.latitude}, ${msg.location?.longitude}]`;
-    case "sticker":
-      return "[Sticker]";
-    case "reaction":
-      return `[Reação: ${msg.reaction?.emoji}]`;
-    default:
-      return `[${msg.type || "desconhecido"}]`;
-  }
+function detectMessageType(payload: any): string {
+  if (payload.text?.message) return "text";
+  if (payload.image) return "image";
+  if (payload.video) return "video";
+  if (payload.audio) return "audio";
+  if (payload.document) return "document";
+  if (payload.sticker) return "sticker";
+  if (payload.location) return "location";
+  if (payload.contact) return "contact";
+  return "text";
 }
 
 /**
- * Envia resposta automática inicial via Meta Cloud API REAL.
+ * Extrai o conteúdo textual de uma mensagem do Z-API.
+ */
+function extractMessageContent(payload: any): string | null {
+  // Texto simples
+  if (payload.text?.message) return payload.text.message;
+
+  // Imagem com legenda
+  if (payload.image?.caption) return payload.image.caption;
+  if (payload.image) return "[Imagem]";
+
+  // Vídeo com legenda
+  if (payload.video?.caption) return payload.video.caption;
+  if (payload.video) return "[Vídeo]";
+
+  // Áudio
+  if (payload.audio) return "[Áudio]";
+
+  // Documento
+  if (payload.document?.fileName) return `[Documento: ${payload.document.fileName}]`;
+  if (payload.document) return "[Documento]";
+
+  // Localização
+  if (payload.location) {
+    return `[Localização: ${payload.location.latitude}, ${payload.location.longitude}]`;
+  }
+
+  // Sticker
+  if (payload.sticker) return "[Sticker]";
+
+  // Contato
+  if (payload.contact) return "[Contato]";
+
+  return null;
+}
+
+/**
+ * Envia resposta automática inicial via Z-API.
  */
 async function sendAutoReply(
   establishmentId: number,
@@ -539,12 +457,11 @@ async function sendAutoReply(
 ) {
   try {
     // Validar credenciais antes de tentar enviar
-    const validation = validateSendCredentials(settings.phoneNumberId, settings.accessToken);
+    const validation = validateSendCredentials(settings.instanceId, settings.instanceToken);
     if (!validation.valid) {
       console.warn(
-        `[WhatsApp] Auto-reply não enviado — credenciais incompletas: ${validation.errors.join("; ")}`
+        `[Z-API] Auto-reply não enviado — credenciais incompletas: ${validation.errors.join("; ")}`
       );
-      // Registrar como falha no banco
       await createMessage({
         conversationId,
         direction: "outbound",
@@ -566,15 +483,16 @@ async function sendAutoReply(
       settings.autoReplyMessage ??
       `Olá! Você entrou em contato com ${establishmentName}. Em breve você poderá agendar por aqui. Sua mensagem foi recebida! 😊`;
 
-    // Enviar via Meta Cloud API REAL
+    // Enviar via Z-API
     const result = await sendWhatsappMessage(
-      settings.phoneNumberId!,
-      settings.accessToken!,
+      settings.instanceId!,
+      settings.instanceToken!,
+      settings.clientToken,
       recipientPhone,
       message
     );
 
-    // Registrar mensagem outbound com ID real ou erro
+    // Registrar mensagem outbound
     await createMessage({
       conversationId,
       direction: "outbound",
@@ -587,14 +505,14 @@ async function sendAutoReply(
 
     if (result.success) {
       console.log(
-        `[WhatsApp] Auto-reply enviado REAL para ${recipientPhone} (conv=${conversationId}, msgId=${result.messageId})`
+        `[Z-API] Auto-reply enviado para ${recipientPhone} (conv=${conversationId}, msgId=${result.messageId})`
       );
     } else {
       console.warn(
-        `[WhatsApp] Auto-reply FALHOU para ${recipientPhone}: ${result.error}`
+        `[Z-API] Auto-reply FALHOU para ${recipientPhone}: ${result.error}`
       );
     }
   } catch (error) {
-    console.error("[WhatsApp] Erro ao enviar auto-reply:", error);
+    console.error("[Z-API] Erro ao enviar auto-reply:", error);
   }
 }

@@ -1508,8 +1508,8 @@ export const appRouter = router({
       const { countConversationsByEstablishment } = await import("./whatsappDb");
       const convCount = await countConversationsByEstablishment(establishment.id);
 
-      // Determine connection status
-      const hasCredentials = !!(settings.accessToken && settings.phoneNumberId);
+      // Determine connection status (Z-API: instanceId + instanceToken)
+      const hasCredentials = !!(settings.instanceId && settings.instanceToken);
       let status: "not_connected" | "connected" | "error" = "not_connected";
       if (settings.isEnabled && hasCredentials) {
         status = "connected";
@@ -1527,172 +1527,46 @@ export const appRouter = router({
         connectedAt: settings.isEnabled && hasCredentials ? settings.updatedAt : null,
         hasCredentials,
         conversationCount: convCount,
+        provider: "z-api",
       };
     }),
 
     /**
-     * Get Embedded Signup configuration for the frontend.
-     * Returns META_APP_ID and META_CONFIG_ID (safe to expose).
-     * NEVER returns META_APP_SECRET.
+     * Save Z-API credentials.
+     * User provides instanceId, instanceToken, and optionally clientToken.
+     * Backend saves and enables integration.
      */
-    getEmbeddedSignupConfig: protectedProcedure.query(async () => {
-      const appId = ENV.metaAppId;
-      const configId = ENV.metaConfigId;
-
-      if (!appId || !configId) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Embedded Signup não configurado. Entre em contato com o suporte.",
-        });
-      }
-
-      return {
-        appId,
-        configId,
-        sdkVersion: "v21.0",
-      };
-    }),
-
-    /**
-     * Exchange the authorization code from Embedded Signup for a permanent access token.
-     * This is the core of the Embedded Signup flow:
-     * 1. Frontend opens Meta popup → user authorizes
-     * 2. Frontend receives code + phone_number_id + waba_id
-     * 3. Frontend sends them here
-     * 4. Backend exchanges code for access_token (server-to-server, using APP_SECRET)
-     * 5. Backend saves credentials and enables integration
-     */
-    exchangeCode: protectedProcedure
+    saveZApiCredentials: protectedProcedure
       .input(
         z.object({
-          code: z.string().min(1, "Código de autorização é obrigatório"),
-          phoneNumberId: z.string().min(1, "Phone Number ID é obrigatório"),
-          wabaId: z.string().min(1, "WABA ID é obrigatório"),
+          instanceId: z.string().min(1, "Instance ID é obrigatório"),
+          instanceToken: z.string().min(1, "Instance Token é obrigatório"),
+          clientToken: z.string().optional().nullable(),
+          phoneNumber: z.string().max(20).optional().nullable(),
         })
       )
       .mutation(async ({ ctx, input }) => {
         const establishment = await resolveTenant(ctx.user.id);
 
-        // Validate META_APP_SECRET is configured
-        if (!ENV.metaAppId || !ENV.metaAppSecret) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: "Credenciais da plataforma não configuradas. Entre em contato com o suporte.",
-          });
-        }
-
-        // Exchange code for access_token via Meta Graph API (server-to-server)
-        let accessToken: string;
-        try {
-          const exchangeUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
-          exchangeUrl.searchParams.set("client_id", ENV.metaAppId);
-          exchangeUrl.searchParams.set("client_secret", ENV.metaAppSecret);
-          exchangeUrl.searchParams.set("code", input.code);
-
-          const response = await fetch(exchangeUrl.toString());
-          const data = await response.json() as any;
-
-          if (!response.ok || !data.access_token) {
-            const errorMsg = data?.error?.message ?? "Falha ao trocar código por token";
-            console.error("[WhatsApp Embedded Signup] Code exchange failed:", data);
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `Erro na autorização: ${errorMsg}`,
-            });
-          }
-
-          accessToken = data.access_token;
-        } catch (error: any) {
-          if (error instanceof TRPCError) throw error;
-          console.error("[WhatsApp Embedded Signup] Network error:", error);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Erro de rede ao conectar com a Meta. Tente novamente.",
-          });
-        }
-
-        // Fetch phone number details from Meta API to get display number
-        let phoneNumber: string | null = null;
-        try {
-          const phoneRes = await fetch(
-            `https://graph.facebook.com/v21.0/${input.phoneNumberId}`,
-            { headers: { Authorization: `Bearer ${accessToken}` } }
-          );
-          if (phoneRes.ok) {
-            const phoneData = await phoneRes.json() as any;
-            phoneNumber = phoneData.display_phone_number ?? null;
-          }
-        } catch {
-          // Non-critical — we can proceed without the display number
-        }
-
-        // Generate secure webhook verify token
-        const verifyToken = `prontei_${establishment.id}_${Date.now()}`;
-
-        // Save credentials and enable integration
         await upsertWhatsappSettings({
           establishmentId: establishment.id,
           isEnabled: true,
-          provider: "meta",
-          accessToken,
-          phoneNumberId: input.phoneNumberId,
-          phoneNumber,
-          businessAccountId: input.wabaId,
-          webhookVerifyToken: verifyToken,
-        });
-
-        console.log(`[WhatsApp Embedded Signup] Conexão estabelecida para establishment ${establishment.id}`);
-
-        return {
-          success: true,
-          phoneNumber,
-          webhookUrl: `/api/whatsapp/webhook`,
-          webhookVerifyToken: verifyToken,
-        };
-      }),
-
-    /**
-     * Connect WhatsApp — manual fallback for admin setup.
-     * Kept for backward compatibility. Prefer exchangeCode for Embedded Signup.
-     */
-    connect: protectedProcedure
-      .input(
-        z.object({
-          accessToken: z.string().min(1, "Token de acesso é obrigatório"),
-          phoneNumberId: z.string().min(1, "Phone Number ID é obrigatório"),
-          phoneNumber: z.string().max(20).optional(),
-          businessAccountId: z.string().max(50).optional(),
-          webhookVerifyToken: z.string().max(100).optional(),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const establishment = await resolveTenant(ctx.user.id);
-
-        // Generate a secure webhook verify token if not provided
-        const verifyToken = input.webhookVerifyToken || `prontei_${establishment.id}_${Date.now()}`;
-
-        await upsertWhatsappSettings({
-          establishmentId: establishment.id,
-          isEnabled: true,
-          provider: "meta",
-          accessToken: input.accessToken,
-          phoneNumberId: input.phoneNumberId,
+          provider: "z-api",
+          instanceId: input.instanceId,
+          instanceToken: input.instanceToken,
+          clientToken: input.clientToken ?? null,
           phoneNumber: input.phoneNumber ?? null,
-          businessAccountId: input.businessAccountId ?? null,
-          webhookVerifyToken: verifyToken,
         });
 
-        console.log(`[WhatsApp] Conexão estabelecida para establishment ${establishment.id}`);
+        console.log(`[Z-API] Credenciais salvas para establishment ${establishment.id}`);
 
         return {
           success: true,
-          webhookUrl: `/api/whatsapp/webhook`,
-          webhookVerifyToken: verifyToken,
         };
       }),
 
     /**
-     * Disconnect WhatsApp — disables integration and clears credentials.
+     * Disconnect WhatsApp — disables integration and clears Z-API credentials.
      */
     disconnect: protectedProcedure.mutation(async ({ ctx }) => {
       const establishment = await resolveTenant(ctx.user.id);
@@ -1700,19 +1574,19 @@ export const appRouter = router({
       await upsertWhatsappSettings({
         establishmentId: establishment.id,
         isEnabled: false,
-        accessToken: null,
-        phoneNumberId: null,
-        businessAccountId: null,
-        webhookVerifyToken: null,
+        instanceId: null,
+        instanceToken: null,
+        clientToken: null,
+        phoneNumber: null,
       });
 
-      console.log(`[WhatsApp] Conexão removida para establishment ${establishment.id}`);
+      console.log(`[Z-API] Conexão removida para establishment ${establishment.id}`);
       return { success: true };
     }),
 
     /**
-     * Test WhatsApp connection — validates credentials by calling Meta API.
-     * Does NOT send a real message, just checks if the token is valid.
+     * Test WhatsApp connection — validates credentials by calling Z-API status endpoint.
+     * Does NOT send a real message, just checks if the instance is connected.
      */
     testConnection: protectedProcedure.mutation(async ({ ctx }) => {
       const establishment = await resolveTenant(ctx.user.id);
@@ -1727,7 +1601,7 @@ export const appRouter = router({
       }
 
       const { validateSendCredentials } = await import("./whatsappWebhook");
-      const validation = validateSendCredentials(settings.phoneNumberId, settings.accessToken);
+      const validation = validateSendCredentials(settings.instanceId, settings.instanceToken);
       if (!validation.valid) {
         return {
           success: false,
@@ -1736,28 +1610,29 @@ export const appRouter = router({
         };
       }
 
-      // Validate token by calling Meta API (GET phone number info)
+      // Validate by calling Z-API status endpoint
       try {
-        const url = `https://graph.facebook.com/v21.0/${settings.phoneNumberId}`;
-        const response = await fetch(url, {
-          headers: { Authorization: `Bearer ${settings.accessToken}` },
-        });
+        const url = `https://api.z-api.io/instances/${settings.instanceId}/token/${settings.instanceToken}/status`;
+        const headers: Record<string, string> = {};
+        if (settings.clientToken) {
+          headers["Client-Token"] = settings.clientToken;
+        }
 
-        if (response.ok) {
-          const data = await response.json();
+        const response = await fetch(url, { headers });
+        const data = await response.json() as any;
+
+        if (response.ok && data.connected) {
           return {
             success: true,
-            phoneNumber: data.display_phone_number ?? settings.phoneNumber,
-            verifiedName: data.verified_name ?? null,
-            qualityRating: data.quality_rating ?? null,
+            connected: true,
+            smartphoneConnected: data.smartphoneConnected ?? false,
+            phoneNumber: settings.phoneNumber,
           };
         } else {
-          const errorBody = await response.json().catch(() => ({}));
-          const errorMsg = (errorBody as any)?.error?.message ?? "Token inválido ou expirado";
           return {
             success: false,
-            error: errorMsg,
-            errorCode: String(response.status),
+            error: data.error ?? "Instância não conectada. Escaneie o QR Code novamente.",
+            errorCode: "NOT_CONNECTED",
           };
         }
       } catch (networkError: any) {
@@ -1765,6 +1640,59 @@ export const appRouter = router({
           success: false,
           error: `Erro de rede: ${networkError?.message ?? "desconhecido"}`,
           errorCode: "NETWORK_ERROR",
+        };
+      }
+    }),
+
+    /**
+     * Get QR Code from Z-API for connecting WhatsApp.
+     * Returns base64 image of the QR code.
+     */
+    getQrCode: protectedProcedure.query(async ({ ctx }) => {
+      const establishment = await resolveTenant(ctx.user.id);
+      const settings = await getWhatsappSettings(establishment.id);
+
+      if (!settings?.instanceId || !settings?.instanceToken) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Credenciais Z-API não configuradas. Salve o Instance ID e Token primeiro.",
+        });
+      }
+
+      try {
+        const url = `https://api.z-api.io/instances/${settings.instanceId}/token/${settings.instanceToken}/qr-code/image`;
+        const headers: Record<string, string> = {};
+        if (settings.clientToken) {
+          headers["Client-Token"] = settings.clientToken;
+        }
+
+        const response = await fetch(url, { headers });
+
+        if (response.ok) {
+          const data = await response.json() as any;
+          return {
+            success: true,
+            qrCode: data.value ?? data,
+          };
+        } else {
+          const errorData = await response.json().catch(() => ({})) as any;
+          // If already connected, return that info
+          if (errorData?.error === "You are already connected.") {
+            return {
+              success: false,
+              alreadyConnected: true,
+              error: "Já conectado! Não é necessário escanear o QR Code.",
+            };
+          }
+          return {
+            success: false,
+            error: errorData?.error ?? "Erro ao obter QR Code",
+          };
+        }
+      } catch (networkError: any) {
+        return {
+          success: false,
+          error: `Erro de rede: ${networkError?.message ?? "desconhecido"}`,
         };
       }
     }),
@@ -1790,8 +1718,7 @@ export const appRouter = router({
       }),
 
     /**
-     * Admin-only: update raw settings (for system admin, not end user).
-     * Kept for backward compatibility but hidden from user-facing UI.
+     * Admin-only: update raw settings.
      */
     adminUpdateSettings: protectedProcedure
       .input(
@@ -1799,10 +1726,9 @@ export const appRouter = router({
           isEnabled: z.boolean().optional(),
           phoneNumber: z.string().max(20).optional().nullable(),
           provider: z.string().max(50).optional(),
-          accessToken: z.string().optional().nullable(),
-          webhookVerifyToken: z.string().max(100).optional().nullable(),
-          phoneNumberId: z.string().max(50).optional().nullable(),
-          businessAccountId: z.string().max(50).optional().nullable(),
+          instanceId: z.string().optional().nullable(),
+          instanceToken: z.string().optional().nullable(),
+          clientToken: z.string().optional().nullable(),
           autoReplyEnabled: z.boolean().optional(),
           autoReplyMessage: z.string().max(1000).optional().nullable(),
         })
@@ -1891,7 +1817,7 @@ export const appRouter = router({
 
         // Validate credentials before attempting send
         const { validateSendCredentials } = await import("./whatsappWebhook");
-        const validation = validateSendCredentials(settings?.phoneNumberId, settings?.accessToken);
+        const validation = validateSendCredentials(settings?.instanceId, settings?.instanceToken);
         if (!validation.valid) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -1899,10 +1825,11 @@ export const appRouter = router({
           });
         }
 
-        // Send via Meta Cloud API REAL
+        // Send via Z-API
         const result = await sendWhatsappMessage(
-          settings!.phoneNumberId!,
-          settings!.accessToken!,
+          settings!.instanceId!,
+          settings!.instanceToken!,
+          settings!.clientToken,
           conv.phone,
           input.message
         );

@@ -1,5 +1,6 @@
 /**
- * WHATSAPP DB QUERIES — Queries de banco para módulo WhatsApp (Etapa 19)
+ * WHATSAPP DB QUERIES — Queries de banco para módulo WhatsApp
+ * Atualizado para Z-API (instanceId, instanceToken, clientToken)
  */
 
 import { eq, and, desc, asc, sql } from "drizzle-orm";
@@ -36,6 +37,11 @@ export async function upsertWhatsappSettings(data: {
   isEnabled?: boolean;
   phoneNumber?: string | null;
   provider?: string;
+  // Z-API fields
+  instanceId?: string | null;
+  instanceToken?: string | null;
+  clientToken?: string | null;
+  // Legacy Meta fields (kept for migration)
   accessToken?: string | null;
   webhookVerifyToken?: string | null;
   phoneNumberId?: string | null;
@@ -53,6 +59,11 @@ export async function upsertWhatsappSettings(data: {
     if (data.isEnabled !== undefined) updateData.isEnabled = data.isEnabled;
     if (data.phoneNumber !== undefined) updateData.phoneNumber = data.phoneNumber;
     if (data.provider !== undefined) updateData.provider = data.provider;
+    // Z-API fields
+    if (data.instanceId !== undefined) updateData.instanceId = data.instanceId;
+    if (data.instanceToken !== undefined) updateData.instanceToken = data.instanceToken;
+    if (data.clientToken !== undefined) updateData.clientToken = data.clientToken;
+    // Legacy Meta fields
     if (data.accessToken !== undefined) updateData.accessToken = data.accessToken;
     if (data.webhookVerifyToken !== undefined) updateData.webhookVerifyToken = data.webhookVerifyToken;
     if (data.phoneNumberId !== undefined) updateData.phoneNumberId = data.phoneNumberId;
@@ -71,7 +82,10 @@ export async function upsertWhatsappSettings(data: {
       establishmentId: data.establishmentId,
       isEnabled: data.isEnabled ?? false,
       phoneNumber: data.phoneNumber ?? null,
-      provider: data.provider ?? "meta",
+      provider: data.provider ?? "z-api",
+      instanceId: data.instanceId ?? null,
+      instanceToken: data.instanceToken ?? null,
+      clientToken: data.clientToken ?? null,
       accessToken: data.accessToken ?? null,
       webhookVerifyToken: data.webhookVerifyToken ?? null,
       phoneNumberId: data.phoneNumberId ?? null,
@@ -85,32 +99,37 @@ export async function upsertWhatsappSettings(data: {
 }
 
 /**
- * Encontra o establishment pelo phoneNumber configurado no WhatsApp.
+ * Encontra o establishment pelo instanceId da Z-API.
  * Usado pelo webhook para resolver tenant sem autenticação de usuário.
+ */
+export async function getSettingsByInstanceId(instanceId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(whatsappSettings)
+    .where(eq(whatsappSettings.instanceId, instanceId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+/**
+ * Encontra o establishment pelo phoneNumber configurado no WhatsApp.
+ * Fallback para resolver tenant.
  */
 export async function getSettingsByPhoneNumber(phoneNumber: string) {
   const db = await getDb();
   if (!db) return undefined;
 
-  const normalized = phoneNumber.replace(/\D/g, "");
-
-  // Try exact match first, then normalized
   const result = await db
     .select()
     .from(whatsappSettings)
     .where(eq(whatsappSettings.phoneNumber, phoneNumber))
     .limit(1);
 
-  if (result.length > 0) return result[0];
-
-  // Fallback: try matching by phone_number_id (Meta Cloud API)
-  const result2 = await db
-    .select()
-    .from(whatsappSettings)
-    .where(eq(whatsappSettings.phoneNumberId, phoneNumber))
-    .limit(1);
-
-  return result2.length > 0 ? result2[0] : undefined;
+  return result.length > 0 ? result[0] : undefined;
 }
 
 // ============================================================
@@ -321,7 +340,7 @@ export async function createMessage(data: {
     content: data.content,
     externalMessageId: data.externalMessageId ?? null,
     status: data.status ?? (data.direction === "inbound" ? "received" : "sent"),
-    metadata: data.metadata ?? null,
+    metadata: data.metadata ? JSON.stringify(data.metadata) : null,
   });
 
   const insertId = result[0].insertId;
@@ -342,7 +361,7 @@ export async function createMessage(data: {
 }
 
 // ============================================================
-// CHATBOT STATE MANAGEMENT (Etapa 20)
+// CHATBOT STATE MANAGEMENT
 // ============================================================
 
 const CONVERSATION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos

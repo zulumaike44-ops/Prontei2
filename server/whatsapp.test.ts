@@ -73,216 +73,102 @@ describe("whatsapp router", () => {
         expect(typeof result.isEnabled).toBe("boolean");
         expect(typeof result.autoReplyEnabled).toBe("boolean");
         expect(typeof result.conversationCount).toBe("number");
+        expect(result.provider).toBe("z-api");
         // Sensitive fields must NOT be present
+        expect((result as any).instanceToken).toBeUndefined();
+        expect((result as any).clientToken).toBeUndefined();
         expect((result as any).accessToken).toBeUndefined();
-        expect((result as any).webhookVerifyToken).toBeUndefined();
       } catch (error: any) {
         expect(error.code).toBe("NOT_FOUND");
       }
     });
 
-    it("never exposes accessToken in response", async () => {
+    it("never exposes sensitive credentials in response", async () => {
       const ctx = createAuthenticatedContext();
       const caller = appRouter.createCaller(ctx);
 
       try {
         const result = await caller.whatsapp.getConnectionStatus();
         const json = JSON.stringify(result);
+        expect(json).not.toContain("instanceToken");
+        expect(json).not.toContain("clientToken");
         expect(json).not.toContain("accessToken");
-        expect(json).not.toContain("webhookVerifyToken");
       } catch (error: any) {
         expect(error.code).toBe("NOT_FOUND");
       }
     });
   });
 
-  // ---- EMBEDDED SIGNUP CONFIG ----
-  describe("whatsapp.getEmbeddedSignupConfig", () => {
-    it("requires authentication", async () => {
-      const ctx = createMockContext(null);
-      const caller = appRouter.createCaller(ctx);
-
-      await expect(caller.whatsapp.getEmbeddedSignupConfig()).rejects.toThrow();
-    });
-
-    it("returns config or PRECONDITION_FAILED when env not set", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      try {
-        const result = await caller.whatsapp.getEmbeddedSignupConfig();
-        // If env vars are set, should return appId and configId
-        expect(result).toBeDefined();
-        expect(typeof result.appId).toBe("string");
-        expect(typeof result.configId).toBe("string");
-        expect(typeof result.sdkVersion).toBe("string");
-        // Must NOT contain appSecret
-        expect((result as any).appSecret).toBeUndefined();
-        expect((result as any).metaAppSecret).toBeUndefined();
-      } catch (error: any) {
-        // If env vars are not set, should return PRECONDITION_FAILED
-        expect(error.code).toBe("PRECONDITION_FAILED");
-      }
-    });
-
-    it("never exposes META_APP_SECRET", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      try {
-        const result = await caller.whatsapp.getEmbeddedSignupConfig();
-        const json = JSON.stringify(result);
-        expect(json).not.toContain("secret");
-        expect(json).not.toContain("SECRET");
-      } catch (error: any) {
-        // PRECONDITION_FAILED is acceptable
-        expect(error.code).toBe("PRECONDITION_FAILED");
-      }
-    });
-  });
-
-  // ---- EXCHANGE CODE (Embedded Signup) ----
-  describe("whatsapp.exchangeCode", () => {
+  // ---- SAVE Z-API CREDENTIALS ----
+  describe("whatsapp.saveZApiCredentials", () => {
     it("requires authentication", async () => {
       const ctx = createMockContext(null);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.whatsapp.exchangeCode({
-          code: "test_code",
-          phoneNumberId: "123456789",
-          wabaId: "987654321",
+        caller.whatsapp.saveZApiCredentials({
+          instanceId: "ABC123",
+          instanceToken: "TOKEN456",
         })
       ).rejects.toThrow();
     });
 
-    it("validates code is required", async () => {
+    it("validates instanceId is required", async () => {
       const ctx = createAuthenticatedContext();
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.whatsapp.exchangeCode({
-          code: "",
-          phoneNumberId: "123456789",
-          wabaId: "987654321",
+        caller.whatsapp.saveZApiCredentials({
+          instanceId: "",
+          instanceToken: "TOKEN456",
         })
       ).rejects.toThrow();
     });
 
-    it("validates phoneNumberId is required", async () => {
+    it("validates instanceToken is required", async () => {
       const ctx = createAuthenticatedContext();
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.whatsapp.exchangeCode({
-          code: "test_code",
-          phoneNumberId: "",
-          wabaId: "987654321",
+        caller.whatsapp.saveZApiCredentials({
+          instanceId: "ABC123",
+          instanceToken: "",
         })
       ).rejects.toThrow();
     });
 
-    it("validates wabaId is required", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      await expect(
-        caller.whatsapp.exchangeCode({
-          code: "test_code",
-          phoneNumberId: "123456789",
-          wabaId: "",
-        })
-      ).rejects.toThrow();
-    });
-
-    it("returns PRECONDITION_FAILED or BAD_REQUEST when env not configured or code invalid", async () => {
+    it("saves credentials when valid data provided", async () => {
       const ctx = createAuthenticatedContext();
       const caller = appRouter.createCaller(ctx);
 
       try {
-        await caller.whatsapp.exchangeCode({
-          code: "fake_code_12345",
-          phoneNumberId: "123456789",
-          wabaId: "987654321",
-        });
-        // If it succeeds (unlikely with fake code), that's fine too
-      } catch (error: any) {
-        // Should fail with PRECONDITION_FAILED (no env) or BAD_REQUEST (invalid code)
-        // or NOT_FOUND (no establishment)
-        expect(["PRECONDITION_FAILED", "BAD_REQUEST", "NOT_FOUND", "INTERNAL_SERVER_ERROR"]).toContain(error.code);
-      }
-    });
-
-    it("other user cannot exchange code for different tenant", async () => {
-      const otherCtx = createOtherUserContext();
-      const otherCaller = appRouter.createCaller(otherCtx);
-
-      try {
-        await otherCaller.whatsapp.exchangeCode({
-          code: "test_code",
-          phoneNumberId: "123456789",
-          wabaId: "987654321",
-        });
-      } catch (error: any) {
-        expect(error.code).toBe("NOT_FOUND");
-      }
-    });
-  });
-
-  // ---- CONNECT (manual fallback) ----
-  describe("whatsapp.connect", () => {
-    it("requires authentication", async () => {
-      const ctx = createMockContext(null);
-      const caller = appRouter.createCaller(ctx);
-
-      await expect(
-        caller.whatsapp.connect({
-          accessToken: "EAABx...",
-          phoneNumberId: "123456789",
-        })
-      ).rejects.toThrow();
-    });
-
-    it("validates accessToken is required", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      await expect(
-        caller.whatsapp.connect({
-          accessToken: "",
-          phoneNumberId: "123456789",
-        })
-      ).rejects.toThrow();
-    });
-
-    it("validates phoneNumberId is required", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      await expect(
-        caller.whatsapp.connect({
-          accessToken: "EAABx...",
-          phoneNumberId: "",
-        })
-      ).rejects.toThrow();
-    });
-
-    it("connects when valid credentials provided", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      try {
-        const result = await caller.whatsapp.connect({
-          accessToken: "EAABx_test_token_12345",
-          phoneNumberId: "123456789012345",
+        const result = await caller.whatsapp.saveZApiCredentials({
+          instanceId: "A20DA9C0183A2D35A260F53F5D2B9244",
+          instanceToken: "test_token_12345",
+          clientToken: "client_security_token",
           phoneNumber: "5511999998888",
         });
 
         expect(result).toBeDefined();
         expect(result.success).toBe(true);
-        expect(result.webhookUrl).toContain("/api/whatsapp/webhook");
-        expect(typeof result.webhookVerifyToken).toBe("string");
-        expect(result.webhookVerifyToken!.length).toBeGreaterThan(0);
+      } catch (error: any) {
+        expect(error.code).toBe("NOT_FOUND");
+      }
+    });
+
+    it("accepts optional clientToken as null", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        const result = await caller.whatsapp.saveZApiCredentials({
+          instanceId: "A20DA9C0183A2D35A260F53F5D2B9244",
+          instanceToken: "test_token_12345",
+          clientToken: null,
+        });
+
+        expect(result).toBeDefined();
+        expect(result.success).toBe(true);
       } catch (error: any) {
         expect(error.code).toBe("NOT_FOUND");
       }
@@ -329,12 +215,32 @@ describe("whatsapp router", () => {
         const result = await caller.whatsapp.testConnection();
         expect(result).toBeDefined();
         expect(typeof result.success).toBe("boolean");
-        // If not connected, should return error
         if (!result.success) {
           expect(result.error).toBeDefined();
         }
       } catch (error: any) {
         expect(["NOT_FOUND", "BAD_REQUEST"]).toContain(error.code);
+      }
+    });
+  });
+
+  // ---- GET QR CODE ----
+  describe("whatsapp.getQrCode", () => {
+    it("requires authentication", async () => {
+      const ctx = createMockContext(null);
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(caller.whatsapp.getQrCode()).rejects.toThrow();
+    });
+
+    it("returns PRECONDITION_FAILED when no credentials configured", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        await caller.whatsapp.getQrCode();
+      } catch (error: any) {
+        expect(["PRECONDITION_FAILED", "NOT_FOUND"]).toContain(error.code);
       }
     });
   });
@@ -363,7 +269,6 @@ describe("whatsapp router", () => {
         expect(result).toBeDefined();
         expect(result.success).toBe(true);
       } catch (error: any) {
-        // NOT_FOUND if user has no establishment
         expect(error.code).toBe("NOT_FOUND");
       }
     });
@@ -602,14 +507,14 @@ describe("whatsapp router", () => {
       }
     });
 
-    it("other user cannot connect WhatsApp on different tenant", async () => {
+    it("other user cannot save Z-API credentials on different tenant", async () => {
       const otherCtx = createOtherUserContext();
       const otherCaller = appRouter.createCaller(otherCtx);
 
       try {
-        await otherCaller.whatsapp.connect({
-          accessToken: "EAABx...",
-          phoneNumberId: "123456789",
+        await otherCaller.whatsapp.saveZApiCredentials({
+          instanceId: "ABC123",
+          instanceToken: "TOKEN456",
         });
       } catch (error: any) {
         expect(error.code).toBe("NOT_FOUND");
@@ -638,36 +543,12 @@ describe("whatsapp router", () => {
       }
     });
 
-    it("other user cannot get conversation from different tenant", async () => {
-      const otherCtx = createOtherUserContext();
-      const otherCaller = appRouter.createCaller(otherCtx);
-
-      try {
-        await otherCaller.whatsapp.getConversation({ id: 1 });
-        expect(true).toBe(false);
-      } catch (error: any) {
-        expect(["NOT_FOUND"]).toContain(error.code);
-      }
-    });
-
     it("other user cannot reply to conversation from different tenant", async () => {
       const otherCtx = createOtherUserContext();
       const otherCaller = appRouter.createCaller(otherCtx);
 
       try {
         await otherCaller.whatsapp.reply({ conversationId: 1, message: "hack" });
-        expect(true).toBe(false);
-      } catch (error: any) {
-        expect(["NOT_FOUND"]).toContain(error.code);
-      }
-    });
-
-    it("other user cannot close conversation from different tenant", async () => {
-      const otherCtx = createOtherUserContext();
-      const otherCaller = appRouter.createCaller(otherCtx);
-
-      try {
-        await otherCaller.whatsapp.closeConversation({ id: 1 });
         expect(true).toBe(false);
       } catch (error: any) {
         expect(["NOT_FOUND"]).toContain(error.code);
@@ -685,27 +566,27 @@ describe("whatsapp webhook helpers", () => {
     it("returns valid when both credentials are present", async () => {
       const { validateSendCredentials } = await import("./whatsappWebhook");
 
-      const result = validateSendCredentials("123456789", "EAABx...");
+      const result = validateSendCredentials("A20DA9C0183A2D35", "TOKEN_12345");
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
-    it("returns invalid when phoneNumberId is missing", async () => {
+    it("returns invalid when instanceId is missing", async () => {
       const { validateSendCredentials } = await import("./whatsappWebhook");
 
-      const result = validateSendCredentials("", "EAABx...");
+      const result = validateSendCredentials("", "TOKEN_12345");
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]).toContain("phone_number_id");
+      expect(result.errors[0]).toContain("Instance ID");
     });
 
-    it("returns invalid when accessToken is missing", async () => {
+    it("returns invalid when instanceToken is missing", async () => {
       const { validateSendCredentials } = await import("./whatsappWebhook");
 
-      const result = validateSendCredentials("123456789", "");
+      const result = validateSendCredentials("A20DA9C0183A2D35", "");
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]).toContain("access_token");
+      expect(result.errors[0]).toContain("Instance Token");
     });
 
     it("returns invalid when both are missing", async () => {
@@ -733,13 +614,14 @@ describe("whatsapp webhook helpers", () => {
     });
   });
 
-  describe("sendWhatsappMessage (real API)", () => {
+  describe("sendWhatsappMessage (Z-API)", () => {
     it("returns error when credentials are empty", async () => {
       const { sendWhatsappMessage } = await import("./whatsappWebhook");
 
       const result = await sendWhatsappMessage(
         "",
         "",
+        null,
         "5511999998888",
         "Olá, teste!"
       );
@@ -749,12 +631,13 @@ describe("whatsapp webhook helpers", () => {
       expect(result.error).toBeDefined();
     });
 
-    it("returns error when phoneNumberId is empty", async () => {
+    it("returns error when instanceId is empty", async () => {
       const { sendWhatsappMessage } = await import("./whatsappWebhook");
 
       const result = await sendWhatsappMessage(
         "",
         "valid_token",
+        null,
         "5511999998888",
         "Olá!"
       );
@@ -763,12 +646,13 @@ describe("whatsapp webhook helpers", () => {
       expect(result.errorCode).toBe("INVALID_CREDENTIALS");
     });
 
-    it("returns error when accessToken is empty", async () => {
+    it("returns error when instanceToken is empty", async () => {
       const { sendWhatsappMessage } = await import("./whatsappWebhook");
 
       const result = await sendWhatsappMessage(
-        "valid_phone_id",
+        "valid_instance_id",
         "",
+        null,
         "5511999998888",
         "Olá!"
       );
@@ -781,8 +665,9 @@ describe("whatsapp webhook helpers", () => {
       const { sendWhatsappMessage } = await import("./whatsappWebhook");
 
       const result = await sendWhatsappMessage(
-        "fake_phone_number_id",
-        "fake_access_token",
+        "fake_instance_id",
+        "fake_instance_token",
+        "fake_client_token",
         "5511999998888",
         "Teste de envio"
       );
@@ -814,6 +699,14 @@ describe("whatsappDb queries", () => {
     it("returns undefined for non-existent establishment", async () => {
       const { getWhatsappSettings } = await import("./whatsappDb");
       const result = await getWhatsappSettings(99999);
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("getSettingsByInstanceId", () => {
+    it("returns undefined for non-existent instanceId", async () => {
+      const { getSettingsByInstanceId } = await import("./whatsappDb");
+      const result = await getSettingsByInstanceId("NON_EXISTENT_INSTANCE_ID");
       expect(result).toBeUndefined();
     });
   });

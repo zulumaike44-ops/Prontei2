@@ -215,3 +215,17 @@
 - [x] Verificar configuração do webhook no Meta (URL, token, assinatura messages)
 - [x] Diagnosticar e corrigir o problema (webhook verify agora prioriza env var, adicionada validação X-Hub-Signature-256)
 - [ ] Testar fluxo completo
+
+## ETAPA Z-API — Migração Meta Cloud API → Z-API
+
+- [x] Z1 — Pesquisa: documentação Z-API (endpoints, QR code, webhooks, preços)
+- [x] Z2 — Plano de migração: mapear todos os arquivos afetados
+- [x] Z3 — Schema: substituir campos Meta (accessToken, phoneNumberId, wabaId) por Z-API (instanceId, instanceToken, clientToken)
+- [x] Z4 — Backend: reescrever whatsappWebhook.ts (envio/recebimento via Z-API REST)
+- [x] Z5 — Backend: reescrever whatsappDb.ts (getSettingsByInstanceId, saveZApiCredentials)
+- [x] Z6 — Backend: refatorar routers.ts (saveZApiCredentials, getQrCode, getConnectionStatus via Z-API)
+- [x] Z7 — Backend: adaptar chatbotFlow.ts (sendChatbotReply com 5 args Z-API)
+- [x] Z8 — Frontend: reescrever WhatsAppSettings.tsx (QR Code + credenciais manuais em vez de Embedded Signup)
+- [x] Z9 — Remover referências Meta: env.ts (metaAppId, metaAppSecret, metaConfigId), meta-secrets.test.ts
+- [x] Z10 — Testes vitest: reescrever whatsapp.test.ts para Z-API — 320 testes passando (13 arquivos)
+- [x] Z11 — Validação final e checkpoint

@@ -324,17 +324,23 @@ export const whatsappSettings = mysqlTable("whatsapp_settings", {
   establishmentId: int("establishmentId").notNull(),
   isEnabled: boolean("isEnabled").default(false).notNull(),
   phoneNumber: varchar("phoneNumber", { length: 20 }),
-  provider: varchar("provider", { length: 50 }).default("meta").notNull(), // meta, z-api, evolution, etc.
-  accessToken: text("accessToken"), // encrypted/placeholder — not stored in plain text in production
+  provider: varchar("provider", { length: 50 }).default("z-api").notNull(), // z-api
+  // Z-API credentials
+  instanceId: varchar("instanceId", { length: 100 }), // Z-API instance ID
+  instanceToken: varchar("instanceToken", { length: 200 }), // Z-API instance token
+  clientToken: text("clientToken"), // Z-API client/security token for webhook validation
+  // Legacy Meta fields (kept for migration, will be removed later)
+  accessToken: text("accessToken"),
   webhookVerifyToken: varchar("webhookVerifyToken", { length: 100 }),
-  phoneNumberId: varchar("phoneNumberId", { length: 50 }), // Meta Cloud API phone number ID
-  businessAccountId: varchar("businessAccountId", { length: 50 }), // Meta WABA ID
+  phoneNumberId: varchar("phoneNumberId", { length: 50 }),
+  businessAccountId: varchar("businessAccountId", { length: 50 }),
   autoReplyEnabled: boolean("autoReplyEnabled").default(true).notNull(),
   autoReplyMessage: text("autoReplyMessage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   uniqueIndex("uq_whatsapp_settings_establishment").on(table.establishmentId),
+  index("idx_wa_settings_instance").on(table.instanceId),
 ]);
 
 export type WhatsappSettings = typeof whatsappSettings.$inferSelect;
