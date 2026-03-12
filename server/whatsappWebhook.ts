@@ -25,6 +25,7 @@
  */
 
 import type { Request, Response } from "express";
+import crypto from "crypto";
 import {
   getSettingsByPhoneNumber,
   findOrCreateConversation,
@@ -218,8 +219,10 @@ export async function sendWhatsappMessage(
  * Handler para verificação do webhook pelo Meta Cloud API.
  * Meta envia GET com hub.mode, hub.verify_token e hub.challenge.
  *
- * Valida o token contra o webhook_verify_token configurado no banco.
- * Se não houver nenhum tenant configurado, usa fallback de variável de ambiente.
+ * PRIORIDADE de validação:
+ * 1. Variável de ambiente WHATSAPP_WEBHOOK_VERIFY_TOKEN (global, confiável)
+ * 2. Token no banco de dados (per-tenant, fallback)
+ * Nunca aceita se nenhum token bater.
  */
 export async function handleWebhookVerification(req: Request, res: Response) {
   const mode = req.query["hub.mode"];
@@ -232,8 +235,16 @@ export async function handleWebhookVerification(req: Request, res: Response) {
     return;
   }
 
+  // 1. PRIORIDADE: verificar contra variável de ambiente (global)
+  const envToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+  if (envToken && token === envToken) {
+    console.log("[WhatsApp Webhook] Verificação aceita via env WHATSAPP_WEBHOOK_VERIFY_TOKEN");
+    res.status(200).send(challenge);
+    return;
+  }
+
   try {
-    // Tentar validar o token contra algum tenant configurado no banco
+    // 2. Fallback: verificar contra token no banco (per-tenant)
     const { getDb } = await import("./db");
     const db = await getDb();
 
@@ -256,21 +267,12 @@ export async function handleWebhookVerification(req: Request, res: Response) {
       }
     }
 
-    // Fallback: verificar contra variável de ambiente (para setup inicial)
-    const envToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
-    if (envToken && token === envToken) {
-      console.log("[WhatsApp Webhook] Verificação aceita via env WHATSAPP_WEBHOOK_VERIFY_TOKEN");
-      res.status(200).send(challenge);
-      return;
-    }
-
     console.warn(`[WhatsApp Webhook] Token de verificação não reconhecido: ${token.slice(0, 8)}...`);
     res.status(403).send("Forbidden — verify_token inválido");
   } catch (error) {
     console.error("[WhatsApp Webhook] Erro ao validar verificação:", error);
-    // Em caso de erro de DB, aceitar para não bloquear setup
-    console.warn("[WhatsApp Webhook] Aceitando verificação por fallback (erro de DB)");
-    res.status(200).send(challenge);
+    // SEGURANÇA: nunca aceitar em caso de erro de DB
+    res.status(500).send("Internal Server Error");
   }
 }
 
@@ -298,9 +300,52 @@ export async function handleWebhookVerification(req: Request, res: Response) {
  *   }]
  * }
  */
+/**
+ * Valida a assinatura X-Hub-Signature-256 do payload do webhook.
+ * Usa META_APP_SECRET como chave HMAC-SHA256.
+ */
+export function validateWebhookSignature(req: Request): boolean {
+  const signature = req.headers["x-hub-signature-256"] as string | undefined;
+  const appSecret = process.env.META_APP_SECRET;
+
+  // Se não temos o app secret configurado, logar aviso mas aceitar (modo dev)
+  if (!appSecret) {
+    console.warn("[WhatsApp Webhook] META_APP_SECRET não configurado — assinatura não validada");
+    return true;
+  }
+
+  if (!signature) {
+    console.warn("[WhatsApp Webhook] Header X-Hub-Signature-256 ausente");
+    return false;
+  }
+
+  const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+  const expectedSignature = "sha256=" + crypto
+    .createHmac("sha256", appSecret)
+    .update(rawBody)
+    .digest("hex");
+
+  const isValid = crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSignature)
+  );
+
+  if (!isValid) {
+    console.warn("[WhatsApp Webhook] Assinatura X-Hub-Signature-256 inválida");
+  }
+
+  return isValid;
+}
+
 export async function handleWebhookMessage(req: Request, res: Response) {
   // Responder 200 imediatamente (Meta exige resposta rápida)
   res.status(200).json({ status: "received" });
+
+  // Validar assinatura do payload (segurança)
+  if (!validateWebhookSignature(req)) {
+    console.error("[WhatsApp Webhook] Payload rejeitado — assinatura inválida");
+    return;
+  }
 
   try {
     const body = req.body;

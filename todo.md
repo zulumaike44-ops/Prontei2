@@ -209,3 +209,9 @@
 - [x] Implementar link de agenda pública
 - [x] Criar testes vitest completos para o chatbot
 - [x] Rodar todos os testes e garantir que passam (329 testes passando)
+
+## Bug — Chatbot não responde mensagens WhatsApp
+- [x] Investigar se mensagens do webhook estão chegando ao servidor (mensagens NÃO chegam — webhook verify falhava)
+- [x] Verificar configuração do webhook no Meta (URL, token, assinatura messages)
+- [x] Diagnosticar e corrigir o problema (webhook verify agora prioriza env var, adicionada validação X-Hub-Signature-256)
+- [ ] Testar fluxo completo

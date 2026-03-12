@@ -11,4 +11,5 @@ export const ENV = {
   metaAppId: process.env.META_APP_ID ?? "",
   metaAppSecret: process.env.META_APP_SECRET ?? "",
   metaConfigId: process.env.META_CONFIG_ID ?? "",
+  whatsappWebhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ?? "",
 };
