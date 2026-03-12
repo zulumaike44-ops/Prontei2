@@ -37,6 +37,7 @@ import {
   normalizePhone,
   getEstablishmentById,
 } from "./db";
+import { handleChatbotFlow, sendChatbotReply } from "./chatbotFlow";
 
 // ============================================================
 // META WHATSAPP CLOUD API — Envio REAL de mensagens
@@ -424,7 +425,30 @@ async function processInboundMessage(
 
     console.log(`[WhatsApp] Mensagem inbound registrada: conv=${conversation.id}, from=${senderPhone}`);
 
-    // 6. Resposta automática se habilitada e conversa nova
+    // 6. Chatbot de agendamento (Etapa 20)
+    // Se a mensagem é de texto, processar pelo chatbot
+    if (messageContent && messageType === "text") {
+      const chatbotReply = await handleChatbotFlow(
+        establishmentId,
+        conversation.id,
+        customerId,
+        senderPhone,
+        normalized,
+        messageContent
+      );
+
+      if (chatbotReply) {
+        await sendChatbotReply(
+          establishmentId,
+          conversation.id,
+          senderPhone,
+          chatbotReply
+        );
+        return;
+      }
+    }
+
+    // 7. Fallback: Resposta automática se habilitada e conversa nova (sem chatbot)
     if (settings.autoReplyEnabled && conversation.isNew) {
       await sendAutoReply(establishmentId, settings, conversation.id, senderPhone);
     }

@@ -43,6 +43,13 @@
       "when": 1773197661833,
       "tag": "0005_noisy_rumiko_fujikawa",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1773298821635,
+      "tag": "0006_wonderful_the_leader",
+      "breakpoints": true
     }
   ]
 }

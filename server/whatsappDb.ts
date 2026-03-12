@@ -341,6 +341,130 @@ export async function createMessage(data: {
   return msg[0];
 }
 
+// ============================================================
+// CHATBOT STATE MANAGEMENT (Etapa 20)
+// ============================================================
+
+const CONVERSATION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos
+
+export type ConversationState =
+  | "MENU"
+  | "SERVICE_SELECTION"
+  | "PROFESSIONAL_SELECTION"
+  | "DATE_SELECTION"
+  | "TIME_SELECTION"
+  | "CONFIRMATION"
+  | "COMPLETED";
+
+/**
+ * Busca conversa aberta com estado do chatbot.
+ * Se a conversa expirou (30 min sem interação), reseta o estado para MENU.
+ */
+export async function getConversationWithState(
+  establishmentId: number,
+  normalizedPhone: string
+): Promise<(typeof whatsappConversations.$inferSelect & { isNew: boolean }) | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(whatsappConversations)
+    .where(
+      and(
+        eq(whatsappConversations.establishmentId, establishmentId),
+        eq(whatsappConversations.normalizedPhone, normalizedPhone),
+        eq(whatsappConversations.status, "open")
+      )
+    )
+    .limit(1);
+
+  if (result.length === 0) return null;
+
+  const conv = result[0];
+
+  // Check timeout: if last interaction > 30 min ago, reset state
+  if (conv.lastInteractionAt) {
+    const elapsed = Date.now() - new Date(conv.lastInteractionAt).getTime();
+    if (elapsed > CONVERSATION_TIMEOUT_MS && conv.conversationState !== "MENU") {
+      await resetConversationState(conv.id);
+      return { ...conv, conversationState: "MENU", selectedServiceId: null, selectedProfessionalId: null, selectedDate: null, selectedTime: null, isNew: false };
+    }
+  }
+
+  return { ...conv, isNew: false };
+}
+
+/**
+ * Atualiza o estado da conversa do chatbot.
+ */
+export async function updateConversationState(
+  conversationId: number,
+  state: ConversationState,
+  selections?: {
+    selectedServiceId?: number | null;
+    selectedProfessionalId?: number | null;
+    selectedDate?: string | null;
+    selectedTime?: string | null;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+
+  const updateData: Record<string, unknown> = {
+    conversationState: state,
+    lastInteractionAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  if (selections?.selectedServiceId !== undefined) updateData.selectedServiceId = selections.selectedServiceId;
+  if (selections?.selectedProfessionalId !== undefined) updateData.selectedProfessionalId = selections.selectedProfessionalId;
+  if (selections?.selectedDate !== undefined) updateData.selectedDate = selections.selectedDate;
+  if (selections?.selectedTime !== undefined) updateData.selectedTime = selections.selectedTime;
+
+  await db
+    .update(whatsappConversations)
+    .set(updateData)
+    .where(eq(whatsappConversations.id, conversationId));
+}
+
+/**
+ * Reseta o estado da conversa para MENU e limpa seleções.
+ */
+export async function resetConversationState(conversationId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(whatsappConversations)
+    .set({
+      conversationState: "MENU",
+      selectedServiceId: null,
+      selectedProfessionalId: null,
+      selectedDate: null,
+      selectedTime: null,
+      lastInteractionAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(whatsappConversations.id, conversationId));
+}
+
+/**
+ * Atualiza lastInteractionAt para manter a conversa ativa.
+ */
+export async function touchConversation(conversationId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(whatsappConversations)
+    .set({
+      lastInteractionAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(whatsappConversations.id, conversationId));
+}
+
 export async function countConversationsByEstablishment(establishmentId: number) {
   const db = await getDb();
   if (!db) return 0;

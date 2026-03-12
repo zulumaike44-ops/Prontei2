@@ -353,6 +353,13 @@ export const whatsappConversations = mysqlTable("whatsapp_conversations", {
   lastMessageAt: datetime("lastMessageAt"),
   lastMessagePreview: varchar("lastMessagePreview", { length: 255 }),
   messageCount: int("messageCount").default(0).notNull(),
+  // Chatbot state machine fields (Etapa 20)
+  conversationState: varchar("conversationState", { length: 30 }).default("MENU").notNull(),
+  selectedServiceId: int("selectedServiceId"),
+  selectedProfessionalId: int("selectedProfessionalId"),
+  selectedDate: varchar("selectedDate", { length: 10 }), // "YYYY-MM-DD"
+  selectedTime: varchar("selectedTime", { length: 5 }), // "HH:mm"
+  lastInteractionAt: datetime("lastInteractionAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -361,6 +368,7 @@ export const whatsappConversations = mysqlTable("whatsapp_conversations", {
   index("idx_wa_conv_customer").on(table.establishmentId, table.customerId),
   index("idx_wa_conv_status").on(table.establishmentId, table.status),
   index("idx_wa_conv_last_msg").on(table.establishmentId, table.lastMessageAt),
+  index("idx_wa_conv_state").on(table.establishmentId, table.conversationState),
 ]);
 
 export type WhatsappConversation = typeof whatsappConversations.$inferSelect;

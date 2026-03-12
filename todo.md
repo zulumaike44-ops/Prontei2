@@ -195,3 +195,17 @@
 - [x] Salvar credenciais como secrets no projeto via webdev_request_secrets
 - [x] Teste vitest validando formato e presença das 3 credenciais (4 testes, 283 total)
 - [x] Reiniciar servidor para aplicar novas variáveis de ambiente
+
+## Etapa 20 — Chatbot de Agendamento via WhatsApp
+
+- [x] Atualizar schema: campos conversation_state, selected_service_id, selected_professional_id, selected_date, selected_time na whatsapp_conversations
+- [x] Atualizar whatsappDb com funções de estado da conversa
+- [x] Criar server/chatbotFlow.ts com máquina de estados (MENU, SERVICE_SELECTION, PROFESSIONAL_SELECTION, DATE_SELECTION, TIME_SELECTION, CONFIRMATION, COMPLETED)
+- [x] Integrar chatbotFlow no webhook existente (whatsappWebhook.ts)
+- [x] Implementar comandos globais (menu, voltar, cancelar, horarios, alterar)
+- [x] Implementar timeout de 30 minutos com reset de estado
+- [x] Implementar reagendamento rápido (último serviço)
+- [x] Implementar cancelamento simples de agendamentos
+- [x] Implementar link de agenda pública
+- [x] Criar testes vitest completos para o chatbot
+- [x] Rodar todos os testes e garantir que passam (329 testes passando)
