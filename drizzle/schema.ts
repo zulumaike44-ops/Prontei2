@@ -329,11 +329,9 @@ export const whatsappSettings = mysqlTable("whatsapp_settings", {
   instanceId: varchar("instanceId", { length: 100 }), // Z-API instance ID
   instanceToken: varchar("instanceToken", { length: 200 }), // Z-API instance token
   clientToken: text("clientToken"), // Z-API client/security token for webhook validation
-  // Legacy Meta fields (kept for migration, will be removed later)
-  accessToken: text("accessToken"),
-  webhookVerifyToken: varchar("webhookVerifyToken", { length: 100 }),
-  phoneNumberId: varchar("phoneNumberId", { length: 50 }),
-  businessAccountId: varchar("businessAccountId", { length: 50 }),
+  // Connection state
+  status: varchar("status", { length: 30 }).default("disconnected").notNull(), // disconnected, connected, waiting_qr, error
+  connectedAt: datetime("connectedAt"), // when the instance was last connected
   autoReplyEnabled: boolean("autoReplyEnabled").default(true).notNull(),
   autoReplyMessage: text("autoReplyMessage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -291,7 +291,27 @@ export async function handleWebhookMessage(req: Request, res: Response) {
       return;
     }
 
+    // 1b. Validar Client-Token se configurado (segurança extra)
+    if (settings.clientToken) {
+      const incomingToken = req.headers["client-token"] as string | undefined;
+      if (incomingToken && incomingToken !== settings.clientToken) {
+        console.warn(`[Z-API Webhook] Client-Token inválido para instanceId: ${instanceId}`);
+        return;
+      }
+    }
+
     const establishmentId = settings.establishmentId;
+
+    // 1c. Se recebemos mensagem, a instância está conectada — atualizar status
+    const { upsertWhatsappSettings } = await import("./whatsappDb");
+    if (settings.status !== "connected") {
+      await upsertWhatsappSettings({
+        establishmentId,
+        status: "connected",
+        connectedAt: new Date(),
+      });
+      console.log(`[Z-API Webhook] Status atualizado para 'connected' (establishment ${establishmentId})`);
+    }
 
     // Processar a mensagem
     await processInboundMessage(

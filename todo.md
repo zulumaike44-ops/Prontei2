@@ -229,3 +229,13 @@
 - [x] Z9 — Remover referências Meta: env.ts (metaAppId, metaAppSecret, metaConfigId), meta-secrets.test.ts
 - [x] Z10 — Testes vitest: reescrever whatsapp.test.ts para Z-API — 320 testes passando (13 arquivos)
 - [x] Z11 — Validação final e checkpoint
+
+## ETAPA ZAPI-REAL — Integração conta real Z-API ao PRONTEI
+
+- [x] ZAPI 1 — Diagnóstico da arquitetura atual (schema, webhook, chatbot, frontend)
+- [x] ZAPI 2 — Ajustes mínimos no schema/configuração (provider, status, connected_at)
+- [x] ZAPI 3 — Implementação backend do provider Z-API (envio, status, QR code)
+- [x] ZAPI 4 — Adaptação do webhook (payload Z-API, tenant resolution, chatbot)
+- [x] ZAPI 5 — Adaptação da tela do WhatsApp (4 estados: não configurado, QR code, conectado, erro)
+- [x] ZAPI 6 — Testes (credenciais, conexão, webhook, conversations, messages, multi-tenant)
+- [x] ZAPI 7 — Validação final (preservação da arquitetura, instruções de uso)

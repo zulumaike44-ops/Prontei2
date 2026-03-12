@@ -240,8 +240,9 @@ export default function WhatsAppSettings() {
     );
   }
 
-  const connectionStatus = status?.status ?? "not_connected";
+  const connectionStatus = status?.status ?? "disconnected";
   const isConnected = connectionStatus === "connected";
+  const isWaitingQr = connectionStatus === "waiting_qr";
   const hasError = connectionStatus === "error";
   const hasCredentials = status?.hasCredentials ?? false;
 
@@ -270,13 +271,15 @@ export default function WhatsAppSettings() {
           className={`rounded-xl border-2 p-6 transition-all ${
             isConnected
               ? "border-green-300 bg-green-50/50"
+              : isWaitingQr
+              ? "border-amber-300 bg-amber-50/50"
               : hasError
               ? "border-red-300 bg-red-50/50"
               : "border-dashed border-muted-foreground/30 bg-muted/20"
           }`}
         >
-          {/* Status: NOT CONNECTED */}
-          {!isConnected && !hasError && (
+          {/* Status: DISCONNECTED */}
+          {connectionStatus === "disconnected" && (
             <div className="text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto">
                 <WifiOff className="w-8 h-8 text-muted-foreground" />
@@ -290,7 +293,6 @@ export default function WhatsAppSettings() {
                 </p>
               </div>
 
-              {/* Step 1: Configure credentials */}
               <Button
                 size="lg"
                 className="bg-green-600 hover:bg-green-700 text-white"
@@ -305,7 +307,6 @@ export default function WhatsAppSettings() {
                 Conectar WhatsApp
               </Button>
 
-              {/* Help text */}
               <div className="pt-2 text-xs text-muted-foreground space-y-1">
                 <p>
                   Você precisa de uma conta na{" "}
@@ -322,6 +323,71 @@ export default function WhatsAppSettings() {
                 <p>
                   Crie uma instância no painel da Z-API e copie o Instance ID e Token.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Status: WAITING QR */}
+          {isWaitingQr && (
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto">
+                <QrCode className="w-8 h-8 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="font-heading text-lg font-semibold text-amber-800">
+                  Aguardando conexão
+                </h2>
+                <p className="text-sm text-amber-700 mt-1">
+                  Credenciais salvas! Escaneie o QR Code para conectar seu WhatsApp.
+                </p>
+              </div>
+              <div className="flex gap-2 justify-center">
+                <Button
+                  size="lg"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={openQrCodeDialog}
+                >
+                  <QrCode className="w-4 h-4 mr-2" />
+                  Escanear QR Code
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => testMutation.mutate()}
+                  disabled={testMutation.isPending}
+                >
+                  {testMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span className="ml-1.5">Verificar</span>
+                </Button>
+              </div>
+              <div className="flex gap-2 justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => {
+                    setShowCredentialsDialog(true);
+                    setInstanceId("");
+                    setInstanceToken("");
+                    setClientToken("");
+                  }}
+                >
+                  <Settings2 className="w-4 h-4 mr-1" />
+                  Alterar credenciais
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-600"
+                  onClick={() => setShowDisconnectDialog(true)}
+                >
+                  <Unplug className="w-4 h-4 mr-1" />
+                  Desconectar
+                </Button>
               </div>
             </div>
           )}
@@ -449,7 +515,7 @@ export default function WhatsAppSettings() {
         {/* ============================================================ */}
         {/* AUTO-REPLY SECTION (only when connected) */}
         {/* ============================================================ */}
-        {isConnected && (
+        {(isConnected || isWaitingQr) && (
           <div className="rounded-xl border p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -508,7 +574,7 @@ export default function WhatsAppSettings() {
         {/* ============================================================ */}
         {/* HOW IT WORKS SECTION */}
         {/* ============================================================ */}
-        {!isConnected && (
+        {connectionStatus === "disconnected" && (
           <div className="rounded-xl border p-6 space-y-4">
             <h3 className="font-heading font-semibold text-foreground">
               Como funciona?

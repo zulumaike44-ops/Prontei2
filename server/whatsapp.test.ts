@@ -69,7 +69,7 @@ describe("whatsapp router", () => {
       try {
         const result = await caller.whatsapp.getConnectionStatus();
         expect(result).toBeDefined();
-        expect(["not_connected", "connected", "error"]).toContain(result.status);
+        expect(["disconnected", "connected", "waiting_qr", "error"]).toContain(result.status);
         expect(typeof result.isEnabled).toBe("boolean");
         expect(typeof result.autoReplyEnabled).toBe("boolean");
         expect(typeof result.conversationCount).toBe("number");

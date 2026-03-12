@@ -41,11 +41,9 @@ export async function upsertWhatsappSettings(data: {
   instanceId?: string | null;
   instanceToken?: string | null;
   clientToken?: string | null;
-  // Legacy Meta fields (kept for migration)
-  accessToken?: string | null;
-  webhookVerifyToken?: string | null;
-  phoneNumberId?: string | null;
-  businessAccountId?: string | null;
+  // Connection state
+  status?: string;
+  connectedAt?: Date | null;
   autoReplyEnabled?: boolean;
   autoReplyMessage?: string | null;
 }) {
@@ -63,11 +61,9 @@ export async function upsertWhatsappSettings(data: {
     if (data.instanceId !== undefined) updateData.instanceId = data.instanceId;
     if (data.instanceToken !== undefined) updateData.instanceToken = data.instanceToken;
     if (data.clientToken !== undefined) updateData.clientToken = data.clientToken;
-    // Legacy Meta fields
-    if (data.accessToken !== undefined) updateData.accessToken = data.accessToken;
-    if (data.webhookVerifyToken !== undefined) updateData.webhookVerifyToken = data.webhookVerifyToken;
-    if (data.phoneNumberId !== undefined) updateData.phoneNumberId = data.phoneNumberId;
-    if (data.businessAccountId !== undefined) updateData.businessAccountId = data.businessAccountId;
+    // Connection state
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.connectedAt !== undefined) updateData.connectedAt = data.connectedAt;
     if (data.autoReplyEnabled !== undefined) updateData.autoReplyEnabled = data.autoReplyEnabled;
     if (data.autoReplyMessage !== undefined) updateData.autoReplyMessage = data.autoReplyMessage;
 
@@ -86,10 +82,8 @@ export async function upsertWhatsappSettings(data: {
       instanceId: data.instanceId ?? null,
       instanceToken: data.instanceToken ?? null,
       clientToken: data.clientToken ?? null,
-      accessToken: data.accessToken ?? null,
-      webhookVerifyToken: data.webhookVerifyToken ?? null,
-      phoneNumberId: data.phoneNumberId ?? null,
-      businessAccountId: data.businessAccountId ?? null,
+      status: data.status ?? "disconnected",
+      connectedAt: data.connectedAt ?? null,
       autoReplyEnabled: data.autoReplyEnabled ?? true,
       autoReplyMessage: data.autoReplyMessage ?? null,
     });

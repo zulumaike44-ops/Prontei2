@@ -57,6 +57,13 @@
       "when": 1773311936748,
       "tag": "0007_bitter_vapor",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1773347358590,
+      "tag": "0008_acoustic_dust",
+      "breakpoints": true
     }
   ]
 }

@@ -1483,7 +1483,7 @@ export const appRouter = router({
   whatsapp: router({
     /**
      * Get WhatsApp connection status for current tenant.
-     * NEVER exposes: accessToken, phoneNumberId, webhookVerifyToken, businessAccountId.
+     * Uses the persisted `status` field from DB.
      * Only returns safe, user-facing data.
      */
     getConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
@@ -1493,7 +1493,7 @@ export const appRouter = router({
 
       if (!settings) {
         return {
-          status: "not_connected" as const,
+          status: "disconnected" as const,
           isEnabled: false,
           phoneNumber: null,
           establishmentName: estab?.name ?? null,
@@ -1502,32 +1502,26 @@ export const appRouter = router({
           connectedAt: null,
           hasCredentials: false,
           conversationCount: 0,
+          provider: "z-api" as const,
         };
       }
 
       const { countConversationsByEstablishment } = await import("./whatsappDb");
       const convCount = await countConversationsByEstablishment(establishment.id);
 
-      // Determine connection status (Z-API: instanceId + instanceToken)
       const hasCredentials = !!(settings.instanceId && settings.instanceToken);
-      let status: "not_connected" | "connected" | "error" = "not_connected";
-      if (settings.isEnabled && hasCredentials) {
-        status = "connected";
-      } else if (settings.isEnabled && !hasCredentials) {
-        status = "error"; // enabled but missing credentials
-      }
 
       return {
-        status,
+        status: settings.status as "disconnected" | "connected" | "waiting_qr" | "error",
         isEnabled: settings.isEnabled,
-        phoneNumber: settings.phoneNumber, // safe: it's the user's own number
+        phoneNumber: settings.phoneNumber,
         establishmentName: estab?.name ?? null,
         autoReplyEnabled: settings.autoReplyEnabled,
         autoReplyMessage: settings.autoReplyMessage,
-        connectedAt: settings.isEnabled && hasCredentials ? settings.updatedAt : null,
+        connectedAt: settings.connectedAt,
         hasCredentials,
         conversationCount: convCount,
-        provider: "z-api",
+        provider: "z-api" as const,
       };
     }),
 
@@ -1556,6 +1550,7 @@ export const appRouter = router({
           instanceToken: input.instanceToken,
           clientToken: input.clientToken ?? null,
           phoneNumber: input.phoneNumber ?? null,
+          status: "waiting_qr",
         });
 
         console.log(`[Z-API] Credenciais salvas para establishment ${establishment.id}`);
@@ -1578,6 +1573,8 @@ export const appRouter = router({
         instanceToken: null,
         clientToken: null,
         phoneNumber: null,
+        status: "disconnected",
+        connectedAt: null,
       });
 
       console.log(`[Z-API] Conexão removida para establishment ${establishment.id}`);
@@ -1622,6 +1619,12 @@ export const appRouter = router({
         const data = await response.json() as any;
 
         if (response.ok && data.connected) {
+          // Update status in DB to connected
+          await upsertWhatsappSettings({
+            establishmentId: establishment.id,
+            status: "connected",
+            connectedAt: new Date(),
+          });
           return {
             success: true,
             connected: true,
@@ -1629,6 +1632,12 @@ export const appRouter = router({
             phoneNumber: settings.phoneNumber,
           };
         } else {
+          // Update status in DB to reflect disconnection
+          const newStatus = settings.isEnabled ? "waiting_qr" : "disconnected";
+          await upsertWhatsappSettings({
+            establishmentId: establishment.id,
+            status: newStatus,
+          });
           return {
             success: false,
             error: data.error ?? "Instância não conectada. Escaneie o QR Code novamente.",
@@ -1636,6 +1645,10 @@ export const appRouter = router({
           };
         }
       } catch (networkError: any) {
+        await upsertWhatsappSettings({
+          establishmentId: establishment.id,
+          status: "error",
+        });
         return {
           success: false,
           error: `Erro de rede: ${networkError?.message ?? "desconhecido"}`,
@@ -1670,14 +1683,24 @@ export const appRouter = router({
 
         if (response.ok) {
           const data = await response.json() as any;
+          // Update status to waiting_qr while user scans
+          await upsertWhatsappSettings({
+            establishmentId: establishment.id,
+            status: "waiting_qr",
+          });
           return {
             success: true,
             qrCode: data.value ?? data,
           };
         } else {
           const errorData = await response.json().catch(() => ({})) as any;
-          // If already connected, return that info
+          // If already connected, update status and return that info
           if (errorData?.error === "You are already connected.") {
+            await upsertWhatsappSettings({
+              establishmentId: establishment.id,
+              status: "connected",
+              connectedAt: new Date(),
+            });
             return {
               success: false,
               alreadyConnected: true,
@@ -1793,7 +1816,7 @@ export const appRouter = router({
         return getMessagesByConversation(input.conversationId, input.limit ?? 100);
       }),
 
-    /** Send a manual reply to a conversation via Meta Cloud API */
+    /** Send a manual reply to a conversation via Z-API */
     reply: protectedProcedure
       .input(
         z.object({

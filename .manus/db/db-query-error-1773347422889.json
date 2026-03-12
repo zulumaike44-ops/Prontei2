@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE whatsapp_settings DROP COLUMN accessToken, DROP COLUMN webhookVerifyToken, DROP COLUMN phoneNumberId, DROP COLUMN businessAccountId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute ALTER TABLE whatsapp_settings DROP COLUMN accessToken, DROP COLUMN webhookVerifyToken, DROP COLUMN phoneNumberId, DROP COLUMN businessAccountId;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1091 (42000) at line 1: Can't DROP 'accessToken'; check that column/key exists"
+  ]
+}
