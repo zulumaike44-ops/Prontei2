@@ -1,0 +1,75 @@
+{
+  "name": "Prontei - Agendamento Inteligente",
+  "short_name": "Prontei",
+  "description": "Sistema de agendamento inteligente com chatbot WhatsApp. Gerencie sua agenda, clientes e serviços de qualquer lugar.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "pt-BR",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-72x72_cffbda2d.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-96x96_14558302.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-128x128_ad867199.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-144x144_a8f885fa.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-152x152_6daadd19.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-192x192_66b1b554.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-384x384_c3a845b1.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-512x512_3bd8fa7c.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-maskable-192x192_57db4bce.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-maskable-512x512_2024b316.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

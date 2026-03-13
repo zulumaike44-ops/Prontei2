@@ -1,0 +1,59 @@
+{
+  "query": "SELECT wh.professionalId, p.name as profName, wh.dayOfWeek, wh.startTime, wh.endTime FROM working_hours wh JOIN professionals p ON wh.professionalId = p.id WHERE p.establishmentId = 1 ORDER BY wh.professionalId, wh.dayOfWeek;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT wh.professionalId, p.name as profName, wh.dayOfWeek, wh.startTime, wh.endTime FROM working_hours wh JOIN professionals p ON wh.professionalId = p.id WHERE p.establishmentId = 1 ORDER BY wh.professionalId, wh.dayOfWeek;",
+  "rows": [
+    {
+      "professionalId": "1",
+      "profName": "Zezinho",
+      "dayOfWeek": "0",
+      "startTime": "09:00",
+      "endTime": "18:00"
+    },
+    {
+      "professionalId": "1",
+      "profName": "Zezinho",
+      "dayOfWeek": "1",
+      "startTime": "09:00",
+      "endTime": "18:00"
+    },
+    {
+      "professionalId": "1",
+      "profName": "Zezinho",
+      "dayOfWeek": "2",
+      "startTime": "09:00",
+      "endTime": "18:00"
+    },
+    {
+      "professionalId": "1",
+      "profName": "Zezinho",
+      "dayOfWeek": "3",
+      "startTime": "09:00",
+      "endTime": "18:00"
+    },
+    {
+      "professionalId": "1",
+      "profName": "Zezinho",
+      "dayOfWeek": "4",
+      "startTime": "09:00",
+      "endTime": "18:00"
+    },
+    {
+      "professionalId": "1",
+      "profName": "Zezinho",
+      "dayOfWeek": "5",
+      "startTime": "09:00",
+      "endTime": "18:00"
+    },
+    {
+      "professionalId": "1",
+      "profName": "Zezinho",
+      "dayOfWeek": "6",
+      "startTime": "09:00",
+      "endTime": "18:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "professionalId\tprofName\tdayOfWeek\tstartTime\tendTime\n1\tZezinho\t0\t09:00\t18:00\n1\tZezinho\t1\t09:00\t18:00\n1\tZezinho\t2\t09:00\t18:00\n1\tZezinho\t3\t09:00\t18:00\n1\tZezinho\t4\t09:00\t18:00\n1\tZezinho\t5\t09:00\t18:00\n1\tZezinho\t6\t09:00\t18:00\n",
+  "stderr": "",
+  "execution_time_ms": 358
+}

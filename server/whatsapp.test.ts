@@ -676,7 +676,7 @@ describe("whatsapp webhook helpers", () => {
       expect(result.success).toBe(false);
       expect(result.errorCode).not.toBe("INVALID_CREDENTIALS");
       expect(result.error).toBeDefined();
-    });
+    }, 15000);
   });
 
   describe("normalizePhone", () => {

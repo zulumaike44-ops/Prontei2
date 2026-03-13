@@ -250,3 +250,17 @@
 - [x] Etapa 7 — Testes reais de funcionamento
 - [x] Etapa 8 — Simulação da Barbearia Alpha
 - [x] Etapa 9 — Validação final e entrega
+
+## BUG — Chatbot diz "não há horários disponíveis"
+- [ ] Diagnosticar por que o chatbot não encontra horários disponíveis ao agendar
+- [ ] Corrigir lógica de consulta de horários no chatbotFlow.ts
+- [ ] Testar e validar correção
+
+## PWA — Instalação do Prontei no celular
+- [x] Verificar estado atual do PWA (manifest, service worker, meta tags)
+- [x] Criar/atualizar manifest.json com dados do Prontei
+- [x] Criar service worker para cache offline
+- [x] Gerar ícones do app em diferentes tamanhos
+- [x] Adicionar meta tags PWA no index.html
+- [x] Testar e validar instalação
+- [x] Entregar link de instalação ao usuário

@@ -1,0 +1,220 @@
+{
+  "query": "SELECT id, name, establishmentId, isActive FROM professionals WHERE establishmentId = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT id, name, establishmentId, isActive FROM professionals WHERE establishmentId = 1;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Zezinho",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "30001",
+      "name": "Maria Silva",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "30002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "60002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "60004",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "60006",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "60008",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "60010",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90004",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90006",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90008",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90014",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90016",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90018",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90020",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90022",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "90024",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "120002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "120004",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "120006",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "120008",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "150002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "180002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "180004",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "210002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "210004",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "210005",
+      "name": "JOAO",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "240002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "240004",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "270002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "300002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "300004",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "330002",
+      "name": "João Santos",
+      "establishmentId": "1",
+      "isActive": "0"
+    },
+    {
+      "id": "360001",
+      "name": "JUNIOR",
+      "establishmentId": "1",
+      "isActive": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\testablishmentId\tisActive\n1\tZezinho\t1\t0\n30001\tMaria Silva\t1\t0\n30002\tJoão Santos\t1\t0\n60002\tJoão Santos\t1\t0\n60004\tJoão Santos\t1\t0\n60006\tJoão Santos\t1\t0\n60008\tJoão Santos\t1\t0\n60010\tJoão Santos\t1\t0\n90002\tJoão Santos\t1\t0\n90004\tJoão Santos\t1\t0\n90006\tJoão Santos\t1\t0\n90008\tJoão Santos\t1\t0\n90014\tJoão Santos\t1\t0\n90016\tJoão Santos\t1\t0\n90018\tJoão Santos\t1\t0\n90020\tJoão Santos\t1\t0\n90022\tJoão Santos\t1\t0\n90024\tJoão Santos\t1\t0\n120002\tJoão Santos\t1\t0\n120004\tJoão Santos\t1\t0\n120006\tJoão Santos\t1\t0\n120008\tJoão Santos\t1\t0\n150002\tJoão Santos\t1\t0\n180002\tJoão Santos\t1\t0\n180004\tJoão Santos\t1\t0\n210002\tJoão Santos\t1\t0\n210004\tJoão Santos\t1\t0\n210005\tJOAO\t1\t0\n240002\tJoão Santos\t1\t0\n240004\tJoão Santos\t1\t0\n270002\tJoão Santos\t1\t0\n300002\tJoão Santos\t1\t0\n300004\tJoão Santos\t1\t0\n330002\tJoão Santos\t1\t0\n360001\tJUNIOR\t1\t1\n",
+  "stderr": "",
+  "execution_time_ms": 357
+}

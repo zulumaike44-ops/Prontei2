@@ -5,8 +5,29 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+      content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
     <title>Prontei</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="Sistema de agendamento inteligente com chatbot WhatsApp. Gerencie sua agenda, clientes e serviços de qualquer lugar." />
+    <meta name="theme-color" content="#6366f1" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Prontei" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Apple Touch Icons (CDN) -->
+    <link rel="apple-touch-icon" href="https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-152x152_6daadd19.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-192x192_66b1b554.png" />
+
+    <!-- Favicon (CDN) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-96x96_14558302.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-72x72_cffbda2d.png" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
@@ -19,6 +40,21 @@
       defer
       src="%VITE_ANALYTICS_ENDPOINT%/umami"
       data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => {
+              console.log('[PWA] Service Worker registrado:', reg.scope);
+            })
+            .catch((err) => {
+              console.log('[PWA] Falha ao registrar Service Worker:', err);
+            });
+        });
+      }
+    </script>
   </body>
 
 </html>

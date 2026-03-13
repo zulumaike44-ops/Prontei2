@@ -1,0 +1,101 @@
+{
+  "query": "SELECT * FROM working_hours WHERE professionalId IN (SELECT id FROM professionals WHERE establishmentId = 1) LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT * FROM working_hours WHERE professionalId IN (SELECT id FROM professionals WHERE establishmentId = 1) LIMIT 20;",
+  "rows": [
+    {
+      "id": "12",
+      "establishmentId": "1",
+      "professionalId": "1",
+      "dayOfWeek": "0",
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "breakStart": "NULL",
+      "breakEnd": "NULL",
+      "isActive": "0",
+      "createdAt": "2026-03-10 17:37:35",
+      "updatedAt": "2026-03-10 17:37:35"
+    },
+    {
+      "id": "13",
+      "establishmentId": "1",
+      "professionalId": "1",
+      "dayOfWeek": "1",
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "breakStart": "12:00",
+      "breakEnd": "13:00",
+      "isActive": "1",
+      "createdAt": "2026-03-10 17:37:35",
+      "updatedAt": "2026-03-10 17:37:35"
+    },
+    {
+      "id": "14",
+      "establishmentId": "1",
+      "professionalId": "1",
+      "dayOfWeek": "2",
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "breakStart": "12:00",
+      "breakEnd": "13:00",
+      "isActive": "1",
+      "createdAt": "2026-03-10 17:37:35",
+      "updatedAt": "2026-03-10 17:37:35"
+    },
+    {
+      "id": "15",
+      "establishmentId": "1",
+      "professionalId": "1",
+      "dayOfWeek": "3",
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "breakStart": "12:00",
+      "breakEnd": "13:00",
+      "isActive": "1",
+      "createdAt": "2026-03-10 17:37:35",
+      "updatedAt": "2026-03-10 17:37:35"
+    },
+    {
+      "id": "16",
+      "establishmentId": "1",
+      "professionalId": "1",
+      "dayOfWeek": "4",
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "breakStart": "12:00",
+      "breakEnd": "13:00",
+      "isActive": "1",
+      "createdAt": "2026-03-10 17:37:35",
+      "updatedAt": "2026-03-10 17:37:35"
+    },
+    {
+      "id": "17",
+      "establishmentId": "1",
+      "professionalId": "1",
+      "dayOfWeek": "5",
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "breakStart": "12:00",
+      "breakEnd": "13:00",
+      "isActive": "1",
+      "createdAt": "2026-03-10 17:37:35",
+      "updatedAt": "2026-03-10 17:37:35"
+    },
+    {
+      "id": "18",
+      "establishmentId": "1",
+      "professionalId": "1",
+      "dayOfWeek": "6",
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "breakStart": "NULL",
+      "breakEnd": "NULL",
+      "isActive": "0",
+      "createdAt": "2026-03-10 17:37:35",
+      "updatedAt": "2026-03-10 17:37:35"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\testablishmentId\tprofessionalId\tdayOfWeek\tstartTime\tendTime\tbreakStart\tbreakEnd\tisActive\tcreatedAt\tupdatedAt\n12\t1\t1\t0\t09:00\t18:00\tNULL\tNULL\t0\t2026-03-10 17:37:35\t2026-03-10 17:37:35\n13\t1\t1\t1\t09:00\t18:00\t12:00\t13:00\t1\t2026-03-10 17:37:35\t2026-03-10 17:37:35\n14\t1\t1\t2\t09:00\t18:00\t12:00\t13:00\t1\t2026-03-10 17:37:35\t2026-03-10 17:37:35\n15\t1\t1\t3\t09:00\t18:00\t12:00\t13:00\t1\t2026-03-10 17:37:35\t2026-03-10 17:37:35\n16\t1\t1\t4\t09:00\t18:00\t12:00\t13:00\t1\t2026-03-10 17:37:35\t2026-03-10 17:37:35\n17\t1\t1\t5\t09:00\t18:00\t12:00\t13:00\t1\t2026-03-10 17:37:35\t2026-03-10 17:37:35\n18\t1\t1\t6\t09:00\t18:00\tNULL\tNULL\t0\t2026-03-10 17:37:35\t2026-03-10 17:37:35\n",
+  "stderr": "",
+  "execution_time_ms": 375
+}
