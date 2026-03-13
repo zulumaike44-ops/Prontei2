@@ -1,0 +1,8 @@
+{
+  "query": "SELECT * FROM whatsapp_settings WHERE establishment_id = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT * FROM whatsapp_settings WHERE establishment_id = 1;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'establishment_id' in 'where clause'"
+  ]
+}

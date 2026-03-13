@@ -1,0 +1,63 @@
+{
+  "query": "SELECT id, direction, content, createdAt FROM whatsapp_messages WHERE conversationId = 2 ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT id, direction, content, createdAt FROM whatsapp_messages WHERE conversationId = 2 ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "9",
+      "direction": "inbound",
+      "content": "2",
+      "createdAt": "2026-03-13 16:43:56"
+    },
+    {
+      "id": "7",
+      "direction": "inbound",
+      "content": "1",
+      "createdAt": "2026-03-13 16:43:38"
+    },
+    {
+      "id": "5",
+      "direction": "inbound",
+      "content": "1",
+      "createdAt": "2026-03-13 16:43:09"
+    },
+    {
+      "id": "3",
+      "direction": "inbound",
+      "content": "Oi",
+      "createdAt": "2026-03-13 16:35:07"
+    }
+  ],
+  "messages": [
+    "10\toutbound\tNão há horários disponíveis para 14/03. 😔",
+    "Digite *voltar* para escolher outra data ou *menu* para recomeçar.\t2026-03-13 16:44:01",
+    "8\toutbound\tQual dia deseja? 📅",
+    "*1* - Hoje (13/03)",
+    "*2* - Amanhã (14/03)",
+    "*3* - Escolher outra data",
+    "Digite o *número* ou uma data no formato *DD/MM*.\t2026-03-13 16:43:41",
+    "6\toutbound\tQual serviço deseja? 💇",
+    "*1* - CORTE MASCULINO (R$ 25.00)",
+    "*2* - Corte Masculino (R$ 35.00)",
+    "*3* - Avaliação Gratuita (R$ 0.00)",
+    "*4* - Corte Masculino (R$ 35.00)",
+    "*5* - Avaliação Gratuita (R$ 0.00)",
+    "*6* - Corte Masculino (R$ 35.00)",
+    "*7* - Avaliação Gratuita (R$ 0.00)",
+    "*8* - Corte Masculino (R$ 35.00)",
+    "*9* - Avaliação Gratuita (R$ 0.00)",
+    "*10* - Corte Masculino (R$ 35.00)",
+    "*11* - Avaliação Gratuita (R$ 0.00)",
+    "*12* - Corte Masculino (R$ 35.00)",
+    "*13* - Avaliação Gratuita (R$ 0.00)",
+    "Digite o *número* do serviço.\t2026-03-13 16:43:10",
+    "4\toutbound\tOlá! 👋",
+    "Bem-vindo ao *BARBA AZUL*",
+    "Como posso ajudar?",
+    "*1* - Agendar horário",
+    "*2* - Ver horários disponíveis",
+    "*3* - Falar com atendente\t2026-03-13 16:35:08"
+  ],
+  "stdout": "id\tdirection\tcontent\tcreatedAt\n10\toutbound\tNão há horários disponíveis para 14/03. 😔\n\nDigite *voltar* para escolher outra data ou *menu* para recomeçar.\t2026-03-13 16:44:01\n9\tinbound\t2\t2026-03-13 16:43:56\n8\toutbound\tQual dia deseja? 📅\n\n*1* - Hoje (13/03)\n*2* - Amanhã (14/03)\n*3* - Escolher outra data\n\nDigite o *número* ou uma data no formato *DD/MM*.\t2026-03-13 16:43:41\n7\tinbound\t1\t2026-03-13 16:43:38\n6\toutbound\tQual serviço deseja? 💇\n\n*1* - CORTE MASCULINO (R$ 25.00)\n*2* - Corte Masculino (R$ 35.00)\n*3* - Avaliação Gratuita (R$ 0.00)\n*4* - Corte Masculino (R$ 35.00)\n*5* - Avaliação Gratuita (R$ 0.00)\n*6* - Corte Masculino (R$ 35.00)\n*7* - Avaliação Gratuita (R$ 0.00)\n*8* - Corte Masculino (R$ 35.00)\n*9* - Avaliação Gratuita (R$ 0.00)\n*10* - Corte Masculino (R$ 35.00)\n*11* - Avaliação Gratuita (R$ 0.00)\n*12* - Corte Masculino (R$ 35.00)\n*13* - Avaliação Gratuita (R$ 0.00)\n\nDigite o *número* do serviço.\t2026-03-13 16:43:10\n5\tinbound\t1\t2026-03-13 16:43:09\n4\toutbound\tOlá! 👋\n\nBem-vindo ao *BARBA AZUL*\n\nComo posso ajudar?\n\n*1* - Agendar horário\n*2* - Ver horários disponíveis\n*3* - Falar com atendente\t2026-03-13 16:35:08\n3\tinbound\tOi\t2026-03-13 16:35:07\n",
+  "stderr": "",
+  "execution_time_ms": 367
+}

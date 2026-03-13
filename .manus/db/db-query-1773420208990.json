@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, conversationState, selectedServiceId, selectedProfessionalId, selectedDate, selectedTime, lastMessagePreview, messageCount FROM whatsapp_conversations WHERE id = 2;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT id, conversationState, selectedServiceId, selectedProfessionalId, selectedDate, selectedTime, lastMessagePreview, messageCount FROM whatsapp_conversations WHERE id = 2;",
+  "rows": [],
+  "messages": [
+    "2\tSERVICE_SELECTION\tNULL\tNULL\tNULL\tNULL\tQual serviço deseja? 💇",
+    "*1* - CORTE MASCULINO (R$ 25.00)",
+    "*2* - Corte Masculino (R$ 35.00)",
+    "*3* - Avaliação Gratuita (R$ 0.00)",
+    "*4* - Corte Masculino (R$ 35.00)",
+    "*5* - Avaliação Gratuita (R$ 0.00)",
+    "*6* - Corte Masculino (R$ 35.00)",
+    "*7* - Avaliação Gratuita (R$\t4"
+  ],
+  "stdout": "id\tconversationState\tselectedServiceId\tselectedProfessionalId\tselectedDate\tselectedTime\tlastMessagePreview\tmessageCount\n2\tSERVICE_SELECTION\tNULL\tNULL\tNULL\tNULL\tQual serviço deseja? 💇\n\n*1* - CORTE MASCULINO (R$ 25.00)\n*2* - Corte Masculino (R$ 35.00)\n*3* - Avaliação Gratuita (R$ 0.00)\n*4* - Corte Masculino (R$ 35.00)\n*5* - Avaliação Gratuita (R$ 0.00)\n*6* - Corte Masculino (R$ 35.00)\n*7* - Avaliação Gratuita (R$\t4\n",
+  "stderr": "",
+  "execution_time_ms": 464
+}

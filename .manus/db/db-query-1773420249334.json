@@ -1,0 +1,20 @@
+{
+  "query": "SELECT conversationState, selectedServiceId, selectedProfessionalId, selectedDate, selectedTime, lastMessagePreview FROM whatsapp_conversations WHERE id = 2;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT conversationState, selectedServiceId, selectedProfessionalId, selectedDate, selectedTime, lastMessagePreview FROM whatsapp_conversations WHERE id = 2;",
+  "rows": [
+    {
+      "conversationState": "DATE_SELECTION",
+      "selectedServiceId": "180005",
+      "selectedProfessionalId": "210005",
+      "selectedDate": "NULL",
+      "selectedTime": "NULL",
+      "lastMessagePreview": "Não há horários disponíveis para 14/03. 😔"
+    }
+  ],
+  "messages": [
+    "Digite *voltar* para escolher outra data ou *menu* para recomeçar."
+  ],
+  "stdout": "conversationState\tselectedServiceId\tselectedProfessionalId\tselectedDate\tselectedTime\tlastMessagePreview\nDATE_SELECTION\t180005\t210005\tNULL\tNULL\tNão há horários disponíveis para 14/03. 😔\n\nDigite *voltar* para escolher outra data ou *menu* para recomeçar.\n",
+  "stderr": "",
+  "execution_time_ms": 358
+}

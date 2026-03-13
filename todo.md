@@ -239,3 +239,14 @@
 - [x] ZAPI 5 — Adaptação da tela do WhatsApp (4 estados: não configurado, QR code, conectado, erro)
 - [x] ZAPI 6 — Testes (credenciais, conexão, webhook, conversations, messages, multi-tenant)
 - [x] ZAPI 7 — Validação final (preservação da arquitetura, instruções de uso)
+
+## INTEGRAÇÃO GUIADA Z-API — Teste Real com Barbearia
+- [x] Etapa 1 — Análise completa do projeto e diagnóstico técnico
+- [x] Etapa 2 — Guiar criação da instância de teste na Z-API
+- [x] Etapa 3 — Guiar conexão do WhatsApp (QR Code)
+- [x] Etapa 4 — Configuração do webhook na Z-API
+- [x] Etapa 5 — Validação da integração backend
+- [x] Etapa 6 — Configuração das variáveis de ambiente
+- [x] Etapa 7 — Testes reais de funcionamento
+- [x] Etapa 8 — Simulação da Barbearia Alpha
+- [x] Etapa 9 — Validação final e entrega

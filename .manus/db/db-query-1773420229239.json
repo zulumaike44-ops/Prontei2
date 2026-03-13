@@ -1,0 +1,20 @@
+{
+  "query": "SELECT conversationState, selectedServiceId, lastMessagePreview FROM whatsapp_conversations WHERE id = 2;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT conversationState, selectedServiceId, lastMessagePreview FROM whatsapp_conversations WHERE id = 2;",
+  "rows": [
+    {
+      "conversationState": "DATE_SELECTION",
+      "selectedServiceId": "180005",
+      "lastMessagePreview": "Qual dia deseja? 📅"
+    }
+  ],
+  "messages": [
+    "*1* - Hoje (13/03)",
+    "*2* - Amanhã (14/03)",
+    "*3* - Escolher outra data",
+    "Digite o *número* ou uma data no formato *DD/MM*."
+  ],
+  "stdout": "conversationState\tselectedServiceId\tlastMessagePreview\nDATE_SELECTION\t180005\tQual dia deseja? 📅\n\n*1* - Hoje (13/03)\n*2* - Amanhã (14/03)\n*3* - Escolher outra data\n\nDigite o *número* ou uma data no formato *DD/MM*.\n",
+  "stderr": "",
+  "execution_time_ms": 356
+}

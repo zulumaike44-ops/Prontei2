@@ -1,0 +1,52 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'whatsapp_settings' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'whatsapp_settings' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "establishmentId"
+    },
+    {
+      "COLUMN_NAME": "isEnabled"
+    },
+    {
+      "COLUMN_NAME": "phoneNumber"
+    },
+    {
+      "COLUMN_NAME": "provider"
+    },
+    {
+      "COLUMN_NAME": "autoReplyEnabled"
+    },
+    {
+      "COLUMN_NAME": "autoReplyMessage"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "instanceId"
+    },
+    {
+      "COLUMN_NAME": "instanceToken"
+    },
+    {
+      "COLUMN_NAME": "clientToken"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "connectedAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nestablishmentId\nisEnabled\nphoneNumber\nprovider\nautoReplyEnabled\nautoReplyMessage\ncreatedAt\nupdatedAt\ninstanceId\ninstanceToken\nclientToken\nstatus\nconnectedAt\n",
+  "stderr": "",
+  "execution_time_ms": 358
+}

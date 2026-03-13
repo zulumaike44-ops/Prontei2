@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO whatsapp_settings (establishmentId, isEnabled, phoneNumber, provider, instanceId, instanceToken, clientToken, status, connectedAt, autoReplyEnabled) VALUES (1, true, '5533984058111', 'z-api', '3F006F9F9E8FB121D3764A9C06F44763', '8B02F64979BF7613E9405734', 'Fac749ddd94ef41688f251dc8695d69d2S', 'connected', NOW(), true) ON DUPLICATE KEY UPDATE isEnabled = true, phoneNumber = '5533984058111', instanceId = '3F006F9F9E8FB121D3764A9C06F44763', instanceToken = '8B02F64979BF7613E9405734', clientToken = 'Fac749ddd94ef41688f251dc8695d69d2S', status = 'connected', connectedAt = NOW();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute INSERT INTO whatsapp_settings (establishmentId, isEnabled, phoneNumber, provider, instanceId, instanceToken, clientToken, status, connectedAt, autoReplyEnabled) VALUES (1, true, '5533984058111', 'z-api', '3F006F9F9E8FB121D3764A9C06F44763', '8B02F64979BF7613E9405734', 'Fac749ddd94ef41688f251dc8695d69d2S', 'connected', NOW(), true) ON DUPLICATE KEY UPDATE isEnabled = true, phoneNumber = '5533984058111', instanceId = '3F006F9F9E8FB121D3764A9C06F44763', instanceToken = '8B02F64979BF7613E9405734', clientToken = 'Fac749ddd94ef41688f251dc8695d69d2S', status = 'connected', connectedAt = NOW();",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 405
+}
