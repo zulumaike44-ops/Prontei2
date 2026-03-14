@@ -99,96 +99,45 @@ describe("whatsapp router", () => {
     });
   });
 
-  // ---- SAVE Z-API CREDENTIALS ----
-  describe("whatsapp.saveZApiCredentials", () => {
+  // ---- COMPLETE EMBEDDED SIGNUP (Meta Cloud API) ----
+  describe("whatsapp.completeEmbeddedSignup", () => {
     it("requires authentication", async () => {
       const ctx = createMockContext(null);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.whatsapp.saveZApiCredentials({
-          instanceId: "ABC123",
-          instanceToken: "TOKEN456",
+        caller.whatsapp.completeEmbeddedSignup({
+          code: "test_auth_code",
         })
       ).rejects.toThrow();
     });
 
-    it("validates instanceId is required", async () => {
+    it("validates code is required", async () => {
       const ctx = createAuthenticatedContext();
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.whatsapp.saveZApiCredentials({
-          instanceId: "",
-          instanceToken: "TOKEN456",
+        caller.whatsapp.completeEmbeddedSignup({
+          code: "",
         })
       ).rejects.toThrow();
     });
 
-    it("validates instanceToken is required", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      await expect(
-        caller.whatsapp.saveZApiCredentials({
-          instanceId: "ABC123",
-          instanceToken: "",
-        })
-      ).rejects.toThrow();
-    });
-
-    it("saves credentials when valid data provided", async () => {
+    it("attempts token exchange with valid code (will fail with fake code)", async () => {
       const ctx = createAuthenticatedContext();
       const caller = appRouter.createCaller(ctx);
 
       try {
-        const result = await caller.whatsapp.saveZApiCredentials({
-          instanceId: "A20DA9C0183A2D35A260F53F5D2B9244",
-          instanceToken: "test_token_12345",
-          clientToken: "client_security_token",
-          phoneNumber: "5511999998888",
+        const result = await caller.whatsapp.completeEmbeddedSignup({
+          code: "fake_auth_code_12345",
         });
 
+        // With fake code, should return error from Meta
         expect(result).toBeDefined();
-        expect(result.success).toBe(true);
+        expect(result.success).toBe(false);
       } catch (error: any) {
-        expect(error.code).toBe("NOT_FOUND");
-      }
-    });
-
-    it("rejects missing clientToken", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      try {
-        await caller.whatsapp.saveZApiCredentials({
-          instanceId: "A20DA9C0183A2D35A260F53F5D2B9244",
-          instanceToken: "test_token_12345",
-          clientToken: "",
-        } as any);
-        // Should not reach here
-        expect(true).toBe(false);
-      } catch (error: any) {
-        expect(error.code).toBe("BAD_REQUEST");
-      }
-    });
-
-    it("accepts valid clientToken", async () => {
-      const ctx = createAuthenticatedContext();
-      const caller = appRouter.createCaller(ctx);
-
-      try {
-        const result = await caller.whatsapp.saveZApiCredentials({
-          instanceId: "A20DA9C0183A2D35A260F53F5D2B9244",
-          instanceToken: "test_token_12345",
-          clientToken: "valid_client_token_123",
-        });
-
-        expect(result).toBeDefined();
-        expect(result.success).toBe(true);
-      } catch (error: any) {
-        // May fail with NOT_FOUND if no establishment, that's ok
-        expect(error.code).toBe("NOT_FOUND");
+        // May fail with NOT_FOUND if no establishment, or INTERNAL_SERVER_ERROR from Meta
+        expect(["NOT_FOUND", "INTERNAL_SERVER_ERROR"]).toContain(error.code);
       }
     });
   });
@@ -581,31 +530,31 @@ describe("whatsapp router", () => {
 // ============================================================
 
 describe("whatsapp webhook helpers", () => {
-  describe("validateSendCredentials", () => {
-    it("returns valid when both credentials are present", async () => {
+  describe("validateSendCredentials (Meta Cloud API)", () => {
+    it("returns valid when phoneNumberId and accessToken are present", async () => {
       const { validateSendCredentials } = await import("./whatsappWebhook");
 
-      const result = validateSendCredentials("A20DA9C0183A2D35", "TOKEN_12345");
+      const result = validateSendCredentials("123456789", "EAAxxxxxxx");
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
-    it("returns invalid when instanceId is missing", async () => {
+    it("returns invalid when phoneNumberId is missing", async () => {
       const { validateSendCredentials } = await import("./whatsappWebhook");
 
-      const result = validateSendCredentials("", "TOKEN_12345");
+      const result = validateSendCredentials("", "EAAxxxxxxx");
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]).toContain("Instance ID");
+      expect(result.errors[0]).toContain("Phone Number ID");
     });
 
-    it("returns invalid when instanceToken is missing", async () => {
+    it("returns invalid when accessToken is missing", async () => {
       const { validateSendCredentials } = await import("./whatsappWebhook");
 
-      const result = validateSendCredentials("A20DA9C0183A2D35", "");
+      const result = validateSendCredentials("123456789", "");
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]).toContain("Instance Token");
+      expect(result.errors[0]).toContain("Access Token");
     });
 
     it("returns invalid when both are missing", async () => {
@@ -633,14 +582,13 @@ describe("whatsapp webhook helpers", () => {
     });
   });
 
-  describe("sendWhatsappMessage (Z-API)", () => {
+  describe("sendWhatsappMessage (Meta Cloud API)", () => {
     it("returns error when credentials are empty", async () => {
       const { sendWhatsappMessage } = await import("./whatsappWebhook");
 
       const result = await sendWhatsappMessage(
         "",
         "",
-        null,
         "5511999998888",
         "Olá, teste!"
       );
@@ -650,13 +598,12 @@ describe("whatsapp webhook helpers", () => {
       expect(result.error).toBeDefined();
     });
 
-    it("returns error when instanceId is empty", async () => {
+    it("returns error when phoneNumberId is empty", async () => {
       const { sendWhatsappMessage } = await import("./whatsappWebhook");
 
       const result = await sendWhatsappMessage(
         "",
-        "valid_token",
-        null,
+        "EAAvalid_token",
         "5511999998888",
         "Olá!"
       );
@@ -665,13 +612,12 @@ describe("whatsapp webhook helpers", () => {
       expect(result.errorCode).toBe("INVALID_CREDENTIALS");
     });
 
-    it("returns error when instanceToken is empty", async () => {
+    it("returns error when accessToken is empty", async () => {
       const { sendWhatsappMessage } = await import("./whatsappWebhook");
 
       const result = await sendWhatsappMessage(
-        "valid_instance_id",
+        "valid_phone_number_id",
         "",
-        null,
         "5511999998888",
         "Olá!"
       );
@@ -684,14 +630,13 @@ describe("whatsapp webhook helpers", () => {
       const { sendWhatsappMessage } = await import("./whatsappWebhook");
 
       const result = await sendWhatsappMessage(
-        "fake_instance_id",
-        "fake_instance_token",
-        "fake_client_token",
+        "fake_phone_number_id",
+        "fake_access_token",
         "5511999998888",
         "Teste de envio"
       );
 
-      // With fake credentials, the API should return an error (not INVALID_CREDENTIALS)
+      // With fake credentials, the Meta API should return an error (not INVALID_CREDENTIALS)
       expect(result.success).toBe(false);
       expect(result.errorCode).not.toBe("INVALID_CREDENTIALS");
       expect(result.error).toBeDefined();
@@ -722,10 +667,10 @@ describe("whatsappDb queries", () => {
     });
   });
 
-  describe("getSettingsByInstanceId", () => {
-    it("returns undefined for non-existent instanceId", async () => {
-      const { getSettingsByInstanceId } = await import("./whatsappDb");
-      const result = await getSettingsByInstanceId("NON_EXISTENT_INSTANCE_ID");
+  describe("getSettingsByPhoneNumberId", () => {
+    it("returns undefined for non-existent phoneNumberId", async () => {
+      const { getSettingsByPhoneNumberId } = await import("./whatsappDb");
+      const result = await getSettingsByPhoneNumberId("NON_EXISTENT_PHONE_ID");
       expect(result).toBeUndefined();
     });
   });

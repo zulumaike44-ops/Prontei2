@@ -1,12 +1,11 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -22,24 +21,31 @@ import {
   WifiOff,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
   Phone,
   Shield,
   Zap,
   ExternalLink,
   RefreshCw,
   Unplug,
-  QrCode,
   Check,
-  Settings2,
+  BadgeCheck,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 // ============================================================
-// WhatsApp Settings — Z-API (QR Code + credenciais simples)
-// Fluxo: preencher credenciais → escanear QR Code → pronto
+// WhatsApp Settings — Meta Cloud API (Embedded Signup)
+// Fluxo: Embedded Signup → token exchange → pronto
 // ============================================================
+
+// Declare Facebook SDK types
+declare global {
+  interface Window {
+    FB: any;
+    fbAsyncInit: () => void;
+  }
+}
 
 export default function WhatsAppSettings() {
   const { isAuthenticated } = useAuth();
@@ -52,18 +58,31 @@ export default function WhatsAppSettings() {
     { enabled: isAuthenticated, refetchInterval: 30000 }
   );
 
+  // Meta config query (appId, configId)
+  const { data: metaConfig } = trpc.whatsapp.getMetaConfig.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+
   // Mutations
-  const saveCredentialsMutation = trpc.whatsapp.saveZApiCredentials.useMutation({
-    onSuccess: () => {
-      toast.success("Credenciais Z-API salvas!", {
-        description: "Agora escaneie o QR Code para conectar seu WhatsApp.",
-      });
-      setShowCredentialsDialog(false);
-      setShowQrCodeDialog(true);
-      utils.whatsapp.getConnectionStatus.invalidate();
+  const completeSignupMutation = trpc.whatsapp.completeEmbeddedSignup.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success("WhatsApp conectado com sucesso!", {
+          description: result.displayPhoneNumber
+            ? `Número: ${result.displayPhoneNumber}`
+            : "Configuração concluída.",
+        });
+        utils.whatsapp.getConnectionStatus.invalidate();
+      } else {
+        toast.error("Erro ao configurar WhatsApp", {
+          description: result.error ?? "Tente novamente.",
+        });
+      }
+      setIsSigningUp(false);
     },
     onError: (err: any) => {
-      toast.error("Erro ao salvar credenciais", { description: err.message });
+      toast.error("Erro ao completar configuração", { description: err.message });
+      setIsSigningUp(false);
     },
   });
 
@@ -82,13 +101,14 @@ export default function WhatsAppSettings() {
     onSuccess: (result) => {
       if (result.success) {
         toast.success("Conexão validada!", {
-          description: "Instância Z-API conectada e funcionando.",
+          description: `WhatsApp Business API funcionando${result.verifiedName ? ` — ${result.verifiedName}` : ""}.`,
         });
       } else {
         toast.error("Falha na validação", {
-          description: result.error ?? "Verifique as credenciais.",
+          description: result.error ?? "Verifique a configuração.",
         });
       }
+      utils.whatsapp.getConnectionStatus.invalidate();
     },
     onError: (err: any) => {
       toast.error("Erro ao testar conexão", { description: err.message });
@@ -106,22 +126,9 @@ export default function WhatsAppSettings() {
   });
 
   // State
-  const [showCredentialsDialog, setShowCredentialsDialog] = useState(false);
-  const [showQrCodeDialog, setShowQrCodeDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
-
-  // Credentials form state
-  const [instanceId, setInstanceId] = useState("");
-  const [instanceToken, setInstanceToken] = useState("");
-  const [clientToken, setClientToken] = useState("");
-
-  // QR Code state
-  const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
-  const [qrLoading, setQrLoading] = useState(false);
-  const [qrError, setQrError] = useState<string | null>(null);
-  const [qrAlreadyConnected, setQrAlreadyConnected] = useState(false);
-  const qrIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const qrAttemptRef = useRef(0);
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  const [fbSdkLoaded, setFbSdkLoaded] = useState(false);
 
   // Auto-reply state
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(status?.autoReplyEnabled ?? true);
@@ -140,82 +147,113 @@ export default function WhatsAppSettings() {
     prevAutoReply[1]({ enabled: status.autoReplyEnabled, message: status.autoReplyMessage });
   }
 
-  // QR Code polling via tRPC
-  const qrCodeQuery = trpc.whatsapp.getQrCode.useQuery(undefined, {
-    enabled: false, // manual fetch only
-  });
-
-  async function fetchQrCode() {
-    setQrLoading(true);
-    setQrError(null);
-    setQrAlreadyConnected(false);
-
-    try {
-      const result = await utils.whatsapp.getQrCode.fetch();
-
-      if (result.success && result.qrCode) {
-        // result.qrCode is base64 image
-        const imgSrc = typeof result.qrCode === "string"
-          ? (result.qrCode.startsWith("data:") ? result.qrCode : `data:image/png;base64,${result.qrCode}`)
-          : "";
-        setQrCodeImage(imgSrc);
-        qrAttemptRef.current++;
-      } else if (result.alreadyConnected) {
-        setQrAlreadyConnected(true);
-        setQrCodeImage(null);
-        stopQrPolling();
-        toast.success("WhatsApp já está conectado!");
-        utils.whatsapp.getConnectionStatus.invalidate();
-      } else {
-        setQrError(result.error ?? "Erro ao obter QR Code");
-      }
-    } catch (err: any) {
-      setQrError(err.message ?? "Erro ao obter QR Code");
-    } finally {
-      setQrLoading(false);
-    }
-  }
-
-  function startQrPolling() {
-    qrAttemptRef.current = 0;
-    fetchQrCode();
-
-    // Poll every 15 seconds (QR code expires every 20s)
-    qrIntervalRef.current = setInterval(() => {
-      if (qrAttemptRef.current >= 3) {
-        // After 3 attempts, stop polling and ask user to retry
-        stopQrPolling();
-        setQrError("QR Code expirou. Clique em 'Gerar novo QR Code' para tentar novamente.");
-        return;
-      }
-      fetchQrCode();
-    }, 15000);
-  }
-
-  function stopQrPolling() {
-    if (qrIntervalRef.current) {
-      clearInterval(qrIntervalRef.current);
-      qrIntervalRef.current = null;
-    }
-  }
-
-  // Cleanup polling on unmount
+  // Load Facebook SDK
   useEffect(() => {
-    return () => stopQrPolling();
-  }, []);
-
-  function handleSaveCredentials() {
-    if (!instanceId.trim() || !instanceToken.trim() || !clientToken.trim()) {
-      toast.error("Preencha todos os campos obrigatórios.", {
-        description: "Instance ID, Instance Token e Client Token são obrigatórios.",
-      });
+    if (window.FB) {
+      setFbSdkLoaded(true);
       return;
     }
-    saveCredentialsMutation.mutate({
-      instanceId: instanceId.trim(),
-      instanceToken: instanceToken.trim(),
-      clientToken: clientToken.trim(),
-    });
+
+    window.fbAsyncInit = function () {
+      window.FB.init({
+        appId: metaConfig?.appId ?? "",
+        autoLogAppEvents: true,
+        xfbml: true,
+        version: "v21.0",
+      });
+      setFbSdkLoaded(true);
+    };
+
+    // Load SDK script
+    if (!document.getElementById("facebook-jssdk")) {
+      const script = document.createElement("script");
+      script.id = "facebook-jssdk";
+      script.src = "https://connect.facebook.net/pt_BR/sdk.js";
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    }
+  }, [metaConfig?.appId]);
+
+  // Handle Embedded Signup session info message
+  const handleSessionInfoMessage = useCallback(
+    (event: MessageEvent) => {
+      if (
+        event.origin !== "https://www.facebook.com" &&
+        event.origin !== "https://web.facebook.com"
+      ) {
+        return;
+      }
+
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "WA_EMBEDDED_SIGNUP") {
+          if (data.event === "FINISH") {
+            // User completed the signup — phone_number_id available
+            console.log("[Meta Embedded Signup] Completed:", data.data);
+          } else if (data.event === "CANCEL") {
+            console.log("[Meta Embedded Signup] Cancelled by user");
+            setIsSigningUp(false);
+            toast.info("Configuração cancelada.");
+          } else if (data.event === "ERROR") {
+            console.error("[Meta Embedded Signup] Error:", data.data);
+            setIsSigningUp(false);
+            toast.error("Erro no processo de configuração.");
+          }
+        }
+      } catch {
+        // Not a JSON message, ignore
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    window.addEventListener("message", handleSessionInfoMessage);
+    return () => window.removeEventListener("message", handleSessionInfoMessage);
+  }, [handleSessionInfoMessage]);
+
+  // Launch Embedded Signup
+  function launchEmbeddedSignup() {
+    if (!window.FB) {
+      toast.error("Facebook SDK não carregou. Recarregue a página e tente novamente.");
+      return;
+    }
+
+    if (!metaConfig?.appId || !metaConfig?.configId) {
+      toast.error("Configuração Meta não disponível. Entre em contato com o suporte.");
+      return;
+    }
+
+    setIsSigningUp(true);
+
+    window.FB.login(
+      function (response: any) {
+        if (response.authResponse) {
+          const code = response.authResponse.code;
+          if (code) {
+            // Exchange code for token on backend
+            completeSignupMutation.mutate({ code });
+          } else {
+            toast.error("Código de autorização não recebido. Tente novamente.");
+            setIsSigningUp(false);
+          }
+        } else {
+          // User cancelled or didn't authorize
+          setIsSigningUp(false);
+        }
+      },
+      {
+        config_id: metaConfig.configId,
+        response_type: "code",
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: "",
+          sessionInfoVersion: 2,
+        },
+      }
+    );
   }
 
   function handleSaveAutoReply() {
@@ -224,11 +262,6 @@ export default function WhatsAppSettings() {
       autoReplyMessage: autoReplyMessage.trim() || null,
     });
     setAutoReplyDirty(false);
-  }
-
-  function openQrCodeDialog() {
-    setShowQrCodeDialog(true);
-    startQrPolling();
   }
 
   // Loading state
@@ -244,7 +277,7 @@ export default function WhatsAppSettings() {
 
   const connectionStatus = status?.status ?? "disconnected";
   const isConnected = connectionStatus === "connected";
-  const isWaitingQr = connectionStatus === "waiting_qr";
+  const isPendingVerification = connectionStatus === "pending_verification";
   const hasError = connectionStatus === "error";
   const hasCredentials = status?.hasCredentials ?? false;
 
@@ -261,7 +294,7 @@ export default function WhatsAppSettings() {
               WhatsApp
             </h1>
             <p className="text-sm text-muted-foreground">
-              Conecte seu WhatsApp para receber e responder mensagens via Z-API
+              Conecte seu WhatsApp Business para receber e responder mensagens automaticamente
             </p>
           </div>
         </div>
@@ -273,7 +306,7 @@ export default function WhatsAppSettings() {
           className={`rounded-xl border-2 p-6 transition-all ${
             isConnected
               ? "border-green-300 bg-green-50/50"
-              : isWaitingQr
+              : isPendingVerification
               ? "border-amber-300 bg-amber-50/50"
               : hasError
               ? "border-red-300 bg-red-50/50"
@@ -291,67 +324,51 @@ export default function WhatsAppSettings() {
                   WhatsApp não conectado
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Conecte seu número do WhatsApp para começar a receber mensagens dos seus clientes.
+                  Conecte seu número do WhatsApp Business para começar a receber mensagens dos seus clientes.
                 </p>
               </div>
 
               <Button
                 size="lg"
                 className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => {
-                  setShowCredentialsDialog(true);
-                  setInstanceId("");
-                  setInstanceToken("");
-                  setClientToken("");
-                }}
+                onClick={launchEmbeddedSignup}
+                disabled={isSigningUp || !fbSdkLoaded}
               >
-                <Zap className="w-4 h-4 mr-2" />
-                Conectar WhatsApp
+                {isSigningUp ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="w-4 h-4 mr-2" />
+                )}
+                {isSigningUp ? "Conectando..." : "Conectar WhatsApp Business"}
               </Button>
 
               <div className="pt-2 text-xs text-muted-foreground space-y-1">
-                <p>
-                  Você precisa de uma conta na{" "}
-                  <a
-                    href="https://www.z-api.io"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline hover:text-primary/80"
-                  >
-                    Z-API
-                  </a>{" "}
-                  (a partir de R$ 99,90/mês).
+                <p className="flex items-center justify-center gap-1">
+                  <Shield className="w-3 h-3" />
+                  Integração oficial via Meta WhatsApp Business API
                 </p>
                 <p>
-                  Crie uma instância no painel da Z-API e copie o Instance ID e Token.
+                  Sem risco de bloqueio. Sem necessidade de manter o celular conectado.
                 </p>
               </div>
             </div>
           )}
 
-          {/* Status: WAITING QR */}
-          {isWaitingQr && (
+          {/* Status: PENDING VERIFICATION */}
+          {isPendingVerification && (
             <div className="text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto">
-                <QrCode className="w-8 h-8 text-amber-600" />
+                <Shield className="w-8 h-8 text-amber-600" />
               </div>
               <div>
                 <h2 className="font-heading text-lg font-semibold text-amber-800">
-                  Aguardando conexão
+                  Verificação pendente
                 </h2>
                 <p className="text-sm text-amber-700 mt-1">
-                  Credenciais salvas! Escaneie o QR Code para conectar seu WhatsApp.
+                  Sua conta WhatsApp Business está sendo verificada pela Meta. Isso pode levar alguns minutos.
                 </p>
               </div>
               <div className="flex gap-2 justify-center">
-                <Button
-                  size="lg"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={openQrCodeDialog}
-                >
-                  <QrCode className="w-4 h-4 mr-2" />
-                  Escanear QR Code
-                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -363,23 +380,7 @@ export default function WhatsAppSettings() {
                   ) : (
                     <RefreshCw className="w-4 h-4" />
                   )}
-                  <span className="ml-1.5">Verificar</span>
-                </Button>
-              </div>
-              <div className="flex gap-2 justify-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground"
-                  onClick={() => {
-                    setShowCredentialsDialog(true);
-                    setInstanceId("");
-                    setInstanceToken("");
-                    setClientToken("");
-                  }}
-                >
-                  <Settings2 className="w-4 h-4 mr-1" />
-                  Alterar credenciais
+                  <span className="ml-1.5">Verificar status</span>
                 </Button>
                 <Button
                   variant="ghost"
@@ -409,14 +410,26 @@ export default function WhatsAppSettings() {
                       </h2>
                       <CheckCircle2 className="w-4 h-4 text-green-600" />
                     </div>
-                    {status?.phoneNumber && (
+                    {(status?.displayPhoneNumber || status?.phoneNumber) && (
                       <p className="text-sm text-green-700 flex items-center gap-1">
                         <Phone className="w-3 h-3" />
-                        {status.phoneNumber}
+                        {status.displayPhoneNumber || status.phoneNumber}
+                      </p>
+                    )}
+                    {status?.verifiedName && (
+                      <p className="text-xs text-green-600/80 flex items-center gap-1 mt-0.5">
+                        <BadgeCheck className="w-3 h-3" />
+                        {status.verifiedName}
+                      </p>
+                    )}
+                    {status?.qualityRating && (
+                      <p className="text-xs text-green-600/70 flex items-center gap-1">
+                        <Star className="w-3 h-3" />
+                        Qualidade: {status.qualityRating}
                       </p>
                     )}
                     <p className="text-xs text-green-600/70 mt-0.5">
-                      via Z-API
+                      via Meta WhatsApp Business API
                     </p>
                   </div>
                 </div>
@@ -434,14 +447,6 @@ export default function WhatsAppSettings() {
                       <RefreshCw className="w-4 h-4" />
                     )}
                     <span className="ml-1.5 hidden sm:inline">Testar</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={openQrCodeDialog}
-                  >
-                    <QrCode className="w-4 h-4" />
-                    <span className="ml-1.5 hidden sm:inline">QR Code</span>
                   </Button>
                   <Button
                     variant="outline"
@@ -485,21 +490,21 @@ export default function WhatsAppSettings() {
                   Erro na conexão
                 </h2>
                 <p className="text-sm text-red-600 mt-1">
-                  A integração está ativa mas as credenciais estão incompletas. Reconfigure as credenciais Z-API.
+                  A integração está ativa mas houve um problema com as credenciais. Reconecte o WhatsApp Business.
                 </p>
               </div>
               <div className="flex gap-2 justify-center">
                 <Button
                   className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => {
-                    setShowCredentialsDialog(true);
-                    setInstanceId("");
-                    setInstanceToken("");
-                    setClientToken("");
-                  }}
+                  onClick={launchEmbeddedSignup}
+                  disabled={isSigningUp || !fbSdkLoaded}
                 >
-                  <Settings2 className="w-4 h-4 mr-2" />
-                  Reconfigurar
+                  {isSigningUp ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4 mr-2" />
+                  )}
+                  Reconectar
                 </Button>
                 <Button
                   variant="outline"
@@ -515,9 +520,9 @@ export default function WhatsAppSettings() {
         </div>
 
         {/* ============================================================ */}
-        {/* AUTO-REPLY SECTION (only when connected) */}
+        {/* AUTO-REPLY SECTION (only when connected or pending) */}
         {/* ============================================================ */}
-        {(isConnected || isWaitingQr) && (
+        {(isConnected || isPendingVerification) && (
           <div className="rounded-xl border p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -587,13 +592,9 @@ export default function WhatsAppSettings() {
                   1
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Crie uma conta na Z-API</p>
+                  <p className="text-sm font-medium">Clique em "Conectar WhatsApp Business"</p>
                   <p className="text-xs text-muted-foreground">
-                    Acesse{" "}
-                    <a href="https://www.z-api.io" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                      z-api.io
-                    </a>{" "}
-                    e crie uma instância. Planos a partir de R$ 99,90/mês.
+                    Uma janela do Facebook será aberta para você autorizar a conexão.
                   </p>
                 </div>
               </div>
@@ -602,9 +603,9 @@ export default function WhatsAppSettings() {
                   2
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Copie as credenciais</p>
+                  <p className="text-sm font-medium">Crie ou selecione sua conta Business</p>
                   <p className="text-xs text-muted-foreground">
-                    No painel da Z-API, copie o Instance ID, Instance Token e Client Token (segurança).
+                    Se você já tem uma conta Meta Business, selecione-a. Caso contrário, uma será criada automaticamente.
                   </p>
                 </div>
               </div>
@@ -613,9 +614,9 @@ export default function WhatsAppSettings() {
                   3
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Cole aqui e escaneie o QR Code</p>
+                  <p className="text-sm font-medium">Adicione seu número de telefone</p>
                   <p className="text-xs text-muted-foreground">
-                    Clique em "Conectar WhatsApp", cole as credenciais e escaneie o QR Code com seu celular.
+                    Informe o número que receberá as mensagens. Você receberá um código de verificação por SMS.
                   </p>
                 </div>
               </div>
@@ -626,202 +627,36 @@ export default function WhatsAppSettings() {
                 <div>
                   <p className="text-sm font-medium">Pronto!</p>
                   <p className="text-xs text-muted-foreground">
-                    Seu chatbot de agendamento começa a funcionar automaticamente.
+                    Seu chatbot de agendamento começa a funcionar automaticamente. Sem necessidade de manter o celular conectado.
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Benefits */}
+            <div className="mt-4 pt-4 border-t">
+              <h4 className="text-sm font-medium text-foreground mb-2">Vantagens da API oficial:</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                  Sem risco de bloqueio do número
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                  Não precisa manter celular ligado
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                  1.000 conversas/mês gratuitas
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                  Selo de verificação no WhatsApp
                 </div>
               </div>
             </div>
           </div>
         )}
-
-        {/* ============================================================ */}
-        {/* CREDENTIALS DIALOG */}
-        {/* ============================================================ */}
-        <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-green-600" />
-                Credenciais Z-API
-              </DialogTitle>
-              <DialogDescription>
-                Copie as credenciais do painel da Z-API e cole aqui. Você encontra esses dados na página da sua instância.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3 py-2">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">
-                  Instance ID <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  placeholder="A20DA9C0183A2D35A260F53F5D2B9244"
-                  value={instanceId}
-                  onChange={(e) => setInstanceId(e.target.value)}
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground">
-                  Identificador único da sua instância Z-API
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">
-                  Instance Token <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  type="password"
-                  placeholder="Token da instância"
-                  value={instanceToken}
-                  onChange={(e) => setInstanceToken(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Token de autenticação da instância
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">
-                  Client Token <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  type="password"
-                  placeholder="Token de segurança da conta"
-                  value={clientToken}
-                  onChange={(e) => setClientToken(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Obrigatório. Token de segurança da sua conta Z-API. No painel Z-API, vá em seu perfil → Segurança → copie o token.
-                </p>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowCredentialsDialog(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={handleSaveCredentials}
-                disabled={saveCredentialsMutation.isPending || !instanceId.trim() || !instanceToken.trim() || !clientToken.trim()}
-              >
-                {saveCredentialsMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Zap className="w-4 h-4 mr-2" />
-                )}
-                Salvar e Conectar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* ============================================================ */}
-        {/* QR CODE DIALOG */}
-        {/* ============================================================ */}
-        <Dialog
-          open={showQrCodeDialog}
-          onOpenChange={(open) => {
-            setShowQrCodeDialog(open);
-            if (!open) stopQrPolling();
-          }}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-green-600" />
-                Conectar WhatsApp
-              </DialogTitle>
-              <DialogDescription>
-                Abra o WhatsApp no celular, vá em Dispositivos conectados e escaneie o QR Code abaixo.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="flex flex-col items-center py-4 space-y-4">
-              {qrLoading && !qrCodeImage && (
-                <div className="w-64 h-64 flex items-center justify-center bg-muted/20 rounded-lg">
-                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                </div>
-              )}
-
-              {qrCodeImage && !qrAlreadyConnected && (
-                <div className="p-3 bg-white rounded-lg shadow-sm border">
-                  <img
-                    src={qrCodeImage}
-                    alt="QR Code WhatsApp"
-                    className="w-64 h-64 object-contain"
-                  />
-                </div>
-              )}
-
-              {qrAlreadyConnected && (
-                <div className="w-64 h-64 flex flex-col items-center justify-center bg-green-50 rounded-lg border border-green-200">
-                  <CheckCircle2 className="w-16 h-16 text-green-500 mb-3" />
-                  <p className="text-sm font-medium text-green-700">Já conectado!</p>
-                  <p className="text-xs text-green-600 mt-1">Não é necessário escanear novamente.</p>
-                </div>
-              )}
-
-              {qrError && !qrLoading && (
-                <div className="w-64 flex flex-col items-center justify-center space-y-3 py-6">
-                  <AlertTriangle className="w-10 h-10 text-amber-500" />
-                  <p className="text-sm text-center text-muted-foreground">{qrError}</p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      qrAttemptRef.current = 0;
-                      startQrPolling();
-                    }}
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Gerar novo QR Code
-                  </Button>
-                </div>
-              )}
-
-              {!qrError && !qrAlreadyConnected && qrCodeImage && (
-                <div className="text-center space-y-1">
-                  <p className="text-xs text-muted-foreground">
-                    O QR Code atualiza automaticamente a cada 15 segundos.
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Após escanear, aguarde alguns segundos para a conexão ser estabelecida.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowQrCodeDialog(false);
-                  stopQrPolling();
-                }}
-              >
-                Fechar
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  testMutation.mutate();
-                }}
-                disabled={testMutation.isPending}
-              >
-                {testMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                )}
-                Verificar conexão
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* ============================================================ */}
         {/* DISCONNECT DIALOG */}

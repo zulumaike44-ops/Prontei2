@@ -324,21 +324,25 @@ export const whatsappSettings = mysqlTable("whatsapp_settings", {
   establishmentId: int("establishmentId").notNull(),
   isEnabled: boolean("isEnabled").default(false).notNull(),
   phoneNumber: varchar("phoneNumber", { length: 20 }),
-  provider: varchar("provider", { length: 50 }).default("z-api").notNull(), // z-api
-  // Z-API credentials
-  instanceId: varchar("instanceId", { length: 100 }), // Z-API instance ID
-  instanceToken: varchar("instanceToken", { length: 200 }), // Z-API instance token
-  clientToken: text("clientToken"), // Z-API client/security token for webhook validation
+  displayPhoneNumber: varchar("displayPhoneNumber", { length: 30 }), // formatted display number from Meta
+  provider: varchar("provider", { length: 50 }).default("meta").notNull(), // meta (Cloud API)
+  // Meta Cloud API credentials
+  wabaId: varchar("wabaId", { length: 100 }), // WhatsApp Business Account ID
+  phoneNumberId: varchar("phoneNumberId", { length: 100 }), // Phone Number ID from Meta
+  accessToken: text("accessToken"), // Business token from Embedded Signup (encrypted at rest)
   // Connection state
-  status: varchar("status", { length: 30 }).default("disconnected").notNull(), // disconnected, connected, waiting_qr, error
-  connectedAt: datetime("connectedAt"), // when the instance was last connected
+  status: varchar("status", { length: 30 }).default("disconnected").notNull(), // disconnected, connected, pending_verification, error
+  connectedAt: datetime("connectedAt"), // when the account was last connected
+  verifiedName: varchar("verifiedName", { length: 200 }), // WhatsApp verified business name
+  qualityRating: varchar("qualityRating", { length: 20 }), // GREEN, YELLOW, RED
   autoReplyEnabled: boolean("autoReplyEnabled").default(true).notNull(),
   autoReplyMessage: text("autoReplyMessage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   uniqueIndex("uq_whatsapp_settings_establishment").on(table.establishmentId),
-  index("idx_wa_settings_instance").on(table.instanceId),
+  index("idx_wa_settings_phone_number_id").on(table.phoneNumberId),
+  index("idx_wa_settings_waba").on(table.wabaId),
 ]);
 
 export type WhatsappSettings = typeof whatsappSettings.$inferSelect;

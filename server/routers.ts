@@ -1478,12 +1478,11 @@ export const appRouter = router({
   }),
 
   // ============================================================
-  // WHATSAPP (protected — tenant-scoped)
+  // WHATSAPP (protected — tenant-scoped) — Meta Cloud API
   // ============================================================
   whatsapp: router({
     /**
      * Get WhatsApp connection status for current tenant.
-     * Uses the persisted `status` field from DB.
      * Only returns safe, user-facing data.
      */
     getConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
@@ -1496,72 +1495,157 @@ export const appRouter = router({
           status: "disconnected" as const,
           isEnabled: false,
           phoneNumber: null,
+          displayPhoneNumber: null,
           establishmentName: estab?.name ?? null,
           autoReplyEnabled: true,
           autoReplyMessage: null,
           connectedAt: null,
           hasCredentials: false,
           conversationCount: 0,
-          provider: "z-api" as const,
+          provider: "meta" as const,
+          verifiedName: null,
+          qualityRating: null,
         };
       }
 
       const { countConversationsByEstablishment } = await import("./whatsappDb");
       const convCount = await countConversationsByEstablishment(establishment.id);
 
-      const hasCredentials = !!(settings.instanceId && settings.instanceToken);
+      const hasCredentials = !!(settings.phoneNumberId && settings.accessToken);
 
       return {
-        status: settings.status as "disconnected" | "connected" | "waiting_qr" | "error",
+        status: settings.status as "disconnected" | "connected" | "pending_verification" | "error",
         isEnabled: settings.isEnabled,
         phoneNumber: settings.phoneNumber,
+        displayPhoneNumber: settings.displayPhoneNumber,
         establishmentName: estab?.name ?? null,
         autoReplyEnabled: settings.autoReplyEnabled,
         autoReplyMessage: settings.autoReplyMessage,
         connectedAt: settings.connectedAt,
         hasCredentials,
         conversationCount: convCount,
-        provider: "z-api" as const,
+        provider: "meta" as const,
+        verifiedName: settings.verifiedName,
+        qualityRating: settings.qualityRating,
       };
     }),
 
     /**
-     * Save Z-API credentials.
-     * User provides instanceId, instanceToken, and optionally clientToken.
-     * Backend saves and enables integration.
+     * Complete Embedded Signup — exchange code for token and save Meta credentials.
+     * Called after the user completes the Facebook Login / Embedded Signup flow.
      */
-    saveZApiCredentials: protectedProcedure
+    completeEmbeddedSignup: protectedProcedure
       .input(
         z.object({
-          instanceId: z.string().min(1, "Instance ID é obrigatório"),
-          instanceToken: z.string().min(1, "Instance Token é obrigatório"),
-          clientToken: z.string().min(1, "Client Token é obrigatório"),
-          phoneNumber: z.string().max(20).optional().nullable(),
+          code: z.string().min(1, "Código de autorização é obrigatório"),
         })
       )
       .mutation(async ({ ctx, input }) => {
         const establishment = await resolveTenant(ctx.user.id);
 
-        await upsertWhatsappSettings({
-          establishmentId: establishment.id,
-          isEnabled: true,
-          provider: "z-api",
-          instanceId: input.instanceId,
-          instanceToken: input.instanceToken,
-          clientToken: input.clientToken ?? null,
-          phoneNumber: input.phoneNumber ?? null,
-          status: "waiting_qr",
-        });
+        try {
+          // 1. Exchange code for access token
+          const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${ENV.metaAppId}&client_secret=${ENV.metaAppSecret}&code=${input.code}`;
+          const tokenResponse = await fetch(tokenUrl);
+          const tokenData = await tokenResponse.json() as any;
 
-        console.log(`[Z-API] Credenciais salvas para establishment ${establishment.id}`);
+          if (!tokenResponse.ok || !tokenData.access_token) {
+            throw new Error(tokenData?.error?.message ?? "Falha ao obter access token");
+          }
 
-        return {
-          success: true,
-        };
+          const accessToken = tokenData.access_token;
+
+          // 2. Get shared WABA ID using debug_token
+          const debugUrl = `https://graph.facebook.com/v21.0/debug_token?input_token=${accessToken}`;
+          const debugResponse = await fetch(debugUrl, {
+            headers: { Authorization: `Bearer ${ENV.metaAppId}|${ENV.metaAppSecret}` },
+          });
+          const debugData = await debugResponse.json() as any;
+
+          // Extract WABA ID from granular scopes
+          let wabaId: string | null = null;
+          const scopes = debugData?.data?.granular_scopes ?? [];
+          for (const scope of scopes) {
+            if (scope.scope === "whatsapp_business_management" && scope.target_ids?.length > 0) {
+              wabaId = scope.target_ids[0];
+              break;
+            }
+          }
+
+          if (!wabaId) {
+            throw new Error("Não foi possível identificar a conta WhatsApp Business. Tente novamente.");
+          }
+
+          // 3. Subscribe the WABA to our app for webhooks
+          await fetch(`https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+
+          // 4. Get phone number info
+          const phonesUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`;
+          const phonesResponse = await fetch(phonesUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          const phonesData = await phonesResponse.json() as any;
+
+          const phoneInfo = phonesData?.data?.[0];
+          const phoneNumberId = phoneInfo?.id ?? null;
+          const displayPhoneNumber = phoneInfo?.display_phone_number ?? null;
+          const verifiedName = phoneInfo?.verified_name ?? null;
+          const qualityRating = phoneInfo?.quality_rating ?? null;
+
+          // 5. Register phone number (if needed)
+          if (phoneNumberId) {
+            await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/register`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                messaging_product: "whatsapp",
+                pin: "123456",
+              }),
+            });
+          }
+
+          // 6. Save credentials
+          await upsertWhatsappSettings({
+            establishmentId: establishment.id,
+            isEnabled: true,
+            provider: "meta",
+            wabaId,
+            phoneNumberId,
+            accessToken,
+            phoneNumber: displayPhoneNumber?.replace(/\D/g, "") ?? null,
+            displayPhoneNumber,
+            verifiedName,
+            qualityRating,
+            status: phoneNumberId ? "connected" : "pending_verification",
+            connectedAt: phoneNumberId ? new Date() : null,
+          });
+
+          console.log(`[Meta API] Embedded Signup concluído para establishment ${establishment.id}, WABA: ${wabaId}, Phone: ${phoneNumberId}`);
+
+          return {
+            success: true,
+            wabaId,
+            phoneNumberId,
+            displayPhoneNumber,
+            verifiedName,
+          };
+        } catch (error: any) {
+          console.error(`[Meta API] Erro no Embedded Signup:`, error);
+          return {
+            success: false,
+            error: error?.message ?? "Erro ao completar configuração do WhatsApp",
+          };
+        }
       }),
 
     /**
-     * Disconnect WhatsApp — disables integration and clears Z-API credentials.
+     * Disconnect WhatsApp — disables integration and clears Meta credentials.
      */
     disconnect: protectedProcedure.mutation(async ({ ctx }) => {
       const establishment = await resolveTenant(ctx.user.id);
@@ -1569,21 +1653,23 @@ export const appRouter = router({
       await upsertWhatsappSettings({
         establishmentId: establishment.id,
         isEnabled: false,
-        instanceId: null,
-        instanceToken: null,
-        clientToken: null,
+        wabaId: null,
+        phoneNumberId: null,
+        accessToken: null,
         phoneNumber: null,
+        displayPhoneNumber: null,
+        verifiedName: null,
+        qualityRating: null,
         status: "disconnected",
         connectedAt: null,
       });
 
-      console.log(`[Z-API] Conexão removida para establishment ${establishment.id}`);
+      console.log(`[Meta API] Conexão removida para establishment ${establishment.id}`);
       return { success: true };
     }),
 
     /**
-     * Test WhatsApp connection — validates credentials by calling Z-API status endpoint.
-     * Does NOT send a real message, just checks if the instance is connected.
+     * Test WhatsApp connection — validates credentials by calling Meta API.
      */
     testConnection: protectedProcedure.mutation(async ({ ctx }) => {
       const establishment = await resolveTenant(ctx.user.id);
@@ -1598,7 +1684,7 @@ export const appRouter = router({
       }
 
       const { validateSendCredentials } = await import("./whatsappWebhook");
-      const validation = validateSendCredentials(settings.instanceId, settings.instanceToken);
+      const validation = validateSendCredentials(settings.phoneNumberId, settings.accessToken);
       if (!validation.valid) {
         return {
           success: false,
@@ -1607,48 +1693,39 @@ export const appRouter = router({
         };
       }
 
-      // Validate by calling Z-API status endpoint
+      // Validate by calling Meta API phone number endpoint
       try {
-        const url = `https://api.z-api.io/instances/${settings.instanceId}/token/${settings.instanceToken}/status`;
-        const headers: Record<string, string> = {};
-        if (settings.clientToken) {
-          headers["Client-Token"] = settings.clientToken;
-        }
-
-        const response = await fetch(url, { headers });
+        const url = `https://graph.facebook.com/v21.0/${settings.phoneNumberId}`;
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${settings.accessToken}` },
+        });
         const data = await response.json() as any;
 
-        if (response.ok && data.connected) {
+        if (response.ok && data.id) {
           // Update status in DB to connected
           await upsertWhatsappSettings({
             establishmentId: establishment.id,
             status: "connected",
             connectedAt: new Date(),
+            verifiedName: data.verified_name ?? settings.verifiedName,
+            qualityRating: data.quality_rating ?? settings.qualityRating,
+            displayPhoneNumber: data.display_phone_number ?? settings.displayPhoneNumber,
           });
           return {
             success: true,
             connected: true,
-            smartphoneConnected: data.smartphoneConnected ?? false,
-            phoneNumber: settings.phoneNumber,
+            phoneNumber: data.display_phone_number ?? settings.phoneNumber,
+            verifiedName: data.verified_name,
+            qualityRating: data.quality_rating,
           };
         } else {
-          // Update status in DB to reflect disconnection
-          const newStatus = settings.isEnabled ? "waiting_qr" : "disconnected";
           await upsertWhatsappSettings({
             establishmentId: establishment.id,
-            status: newStatus,
+            status: "error",
           });
-          // Detect client-token error specifically
-          if (data.error?.toLowerCase()?.includes("client-token")) {
-            return {
-              success: false,
-              error: "Client Token não configurado. Vá em 'Alterar credenciais' e preencha o Client Token.",
-              errorCode: "CLIENT_TOKEN_MISSING",
-            };
-          }
           return {
             success: false,
-            error: data.error ?? "Instância não conectada. Escaneie o QR Code novamente.",
+            error: data?.error?.message ?? "Não foi possível verificar a conexão.",
             errorCode: "NOT_CONNECTED",
           };
         }
@@ -1666,73 +1743,13 @@ export const appRouter = router({
     }),
 
     /**
-     * Get QR Code from Z-API for connecting WhatsApp.
-     * Returns base64 image of the QR code.
+     * Get Meta App configuration for Embedded Signup (frontend needs this).
      */
-    getQrCode: protectedProcedure.query(async ({ ctx }) => {
-      const establishment = await resolveTenant(ctx.user.id);
-      const settings = await getWhatsappSettings(establishment.id);
-
-      if (!settings?.instanceId || !settings?.instanceToken) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Credenciais Z-API não configuradas. Salve o Instance ID e Token primeiro.",
-        });
-      }
-
-      try {
-        const url = `https://api.z-api.io/instances/${settings.instanceId}/token/${settings.instanceToken}/qr-code/image`;
-        const headers: Record<string, string> = {};
-        if (settings.clientToken) {
-          headers["Client-Token"] = settings.clientToken;
-        }
-
-        const response = await fetch(url, { headers });
-
-        if (response.ok) {
-          const data = await response.json() as any;
-          // Update status to waiting_qr while user scans
-          await upsertWhatsappSettings({
-            establishmentId: establishment.id,
-            status: "waiting_qr",
-          });
-          return {
-            success: true,
-            qrCode: data.value ?? data,
-          };
-        } else {
-          const errorData = await response.json().catch(() => ({})) as any;
-          // If already connected, update status and return that info
-          if (errorData?.error === "You are already connected.") {
-            await upsertWhatsappSettings({
-              establishmentId: establishment.id,
-              status: "connected",
-              connectedAt: new Date(),
-            });
-            return {
-              success: false,
-              alreadyConnected: true,
-              error: "Já conectado! Não é necessário escanear o QR Code.",
-            };
-          }
-          // Detect client-token error specifically
-          if (errorData?.error?.toLowerCase()?.includes("client-token")) {
-            return {
-              success: false,
-              error: "Client Token não configurado. Vá em 'Alterar credenciais' e preencha o Client Token.",
-            };
-          }
-          return {
-            success: false,
-            error: errorData?.error ?? "Erro ao obter QR Code",
-          };
-        }
-      } catch (networkError: any) {
-        return {
-          success: false,
-          error: `Erro de rede: ${networkError?.message ?? "desconhecido"}`,
-        };
-      }
+    getMetaConfig: protectedProcedure.query(async () => {
+      return {
+        appId: ENV.metaAppId,
+        configId: ENV.metaConfigId,
+      };
     }),
 
     /**
@@ -1764,9 +1781,8 @@ export const appRouter = router({
           isEnabled: z.boolean().optional(),
           phoneNumber: z.string().max(20).optional().nullable(),
           provider: z.string().max(50).optional(),
-          instanceId: z.string().optional().nullable(),
-          instanceToken: z.string().optional().nullable(),
-          clientToken: z.string().optional().nullable(),
+          wabaId: z.string().optional().nullable(),
+          phoneNumberId: z.string().optional().nullable(),
           autoReplyEnabled: z.boolean().optional(),
           autoReplyMessage: z.string().max(1000).optional().nullable(),
         })
@@ -1820,7 +1836,6 @@ export const appRouter = router({
       )
       .query(async ({ ctx, input }) => {
         const establishment = await resolveTenant(ctx.user.id);
-        // Verify conversation belongs to tenant
         const conv = await getConversationById(input.conversationId, establishment.id);
         if (!conv) {
           throw new TRPCError({
@@ -1831,7 +1846,7 @@ export const appRouter = router({
         return getMessagesByConversation(input.conversationId, input.limit ?? 100);
       }),
 
-    /** Send a manual reply to a conversation via Z-API */
+    /** Send a manual reply to a conversation via Meta Cloud API */
     reply: protectedProcedure
       .input(
         z.object({
@@ -1841,7 +1856,6 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const establishment = await resolveTenant(ctx.user.id);
-        // Verify conversation belongs to tenant
         const conv = await getConversationById(input.conversationId, establishment.id);
         if (!conv) {
           throw new TRPCError({
@@ -1855,7 +1869,7 @@ export const appRouter = router({
 
         // Validate credentials before attempting send
         const { validateSendCredentials } = await import("./whatsappWebhook");
-        const validation = validateSendCredentials(settings?.instanceId, settings?.instanceToken);
+        const validation = validateSendCredentials(settings?.phoneNumberId, settings?.accessToken);
         if (!validation.valid) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -1863,16 +1877,15 @@ export const appRouter = router({
           });
         }
 
-        // Send via Z-API
+        // Send via Meta Cloud API
         const result = await sendWhatsappMessage(
-          settings!.instanceId!,
-          settings!.instanceToken!,
-          settings!.clientToken,
+          settings!.phoneNumberId!,
+          settings!.accessToken!,
           conv.phone,
           input.message
         );
 
-        // Register outbound message with real external ID or error
+        // Register outbound message
         const msg = await createMessage({
           conversationId: input.conversationId,
           direction: "outbound",
@@ -1883,7 +1896,6 @@ export const appRouter = router({
           metadata: result.success ? undefined : { error: result.error, errorCode: result.errorCode },
         });
 
-        // If send failed, inform the user but still return the message record
         if (!result.success) {
           console.warn(`[WhatsApp Reply] Envio falhou para ${conv.phone}: ${result.error}`);
         }

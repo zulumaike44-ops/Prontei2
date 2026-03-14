@@ -1,6 +1,6 @@
 /**
  * WHATSAPP DB QUERIES — Queries de banco para módulo WhatsApp
- * Atualizado para Z-API (instanceId, instanceToken, clientToken)
+ * Meta Cloud API (phoneNumberId, wabaId, accessToken)
  */
 
 import { eq, and, desc, asc, sql } from "drizzle-orm";
@@ -36,14 +36,17 @@ export async function upsertWhatsappSettings(data: {
   establishmentId: number;
   isEnabled?: boolean;
   phoneNumber?: string | null;
+  displayPhoneNumber?: string | null;
   provider?: string;
-  // Z-API fields
-  instanceId?: string | null;
-  instanceToken?: string | null;
-  clientToken?: string | null;
+  // Meta Cloud API fields
+  wabaId?: string | null;
+  phoneNumberId?: string | null;
+  accessToken?: string | null;
   // Connection state
   status?: string;
   connectedAt?: Date | null;
+  verifiedName?: string | null;
+  qualityRating?: string | null;
   autoReplyEnabled?: boolean;
   autoReplyMessage?: string | null;
 }) {
@@ -56,14 +59,17 @@ export async function upsertWhatsappSettings(data: {
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (data.isEnabled !== undefined) updateData.isEnabled = data.isEnabled;
     if (data.phoneNumber !== undefined) updateData.phoneNumber = data.phoneNumber;
+    if (data.displayPhoneNumber !== undefined) updateData.displayPhoneNumber = data.displayPhoneNumber;
     if (data.provider !== undefined) updateData.provider = data.provider;
-    // Z-API fields
-    if (data.instanceId !== undefined) updateData.instanceId = data.instanceId;
-    if (data.instanceToken !== undefined) updateData.instanceToken = data.instanceToken;
-    if (data.clientToken !== undefined) updateData.clientToken = data.clientToken;
+    // Meta Cloud API fields
+    if (data.wabaId !== undefined) updateData.wabaId = data.wabaId;
+    if (data.phoneNumberId !== undefined) updateData.phoneNumberId = data.phoneNumberId;
+    if (data.accessToken !== undefined) updateData.accessToken = data.accessToken;
     // Connection state
     if (data.status !== undefined) updateData.status = data.status;
     if (data.connectedAt !== undefined) updateData.connectedAt = data.connectedAt;
+    if (data.verifiedName !== undefined) updateData.verifiedName = data.verifiedName;
+    if (data.qualityRating !== undefined) updateData.qualityRating = data.qualityRating;
     if (data.autoReplyEnabled !== undefined) updateData.autoReplyEnabled = data.autoReplyEnabled;
     if (data.autoReplyMessage !== undefined) updateData.autoReplyMessage = data.autoReplyMessage;
 
@@ -78,12 +84,15 @@ export async function upsertWhatsappSettings(data: {
       establishmentId: data.establishmentId,
       isEnabled: data.isEnabled ?? false,
       phoneNumber: data.phoneNumber ?? null,
-      provider: data.provider ?? "z-api",
-      instanceId: data.instanceId ?? null,
-      instanceToken: data.instanceToken ?? null,
-      clientToken: data.clientToken ?? null,
+      displayPhoneNumber: data.displayPhoneNumber ?? null,
+      provider: data.provider ?? "meta",
+      wabaId: data.wabaId ?? null,
+      phoneNumberId: data.phoneNumberId ?? null,
+      accessToken: data.accessToken ?? null,
       status: data.status ?? "disconnected",
       connectedAt: data.connectedAt ?? null,
+      verifiedName: data.verifiedName ?? null,
+      qualityRating: data.qualityRating ?? null,
       autoReplyEnabled: data.autoReplyEnabled ?? true,
       autoReplyMessage: data.autoReplyMessage ?? null,
     });
@@ -93,17 +102,17 @@ export async function upsertWhatsappSettings(data: {
 }
 
 /**
- * Encontra o establishment pelo instanceId da Z-API.
+ * Encontra o establishment pelo phoneNumberId da Meta Cloud API.
  * Usado pelo webhook para resolver tenant sem autenticação de usuário.
  */
-export async function getSettingsByInstanceId(instanceId: string) {
+export async function getSettingsByPhoneNumberId(phoneNumberId: string) {
   const db = await getDb();
   if (!db) return undefined;
 
   const result = await db
     .select()
     .from(whatsappSettings)
-    .where(eq(whatsappSettings.instanceId, instanceId))
+    .where(eq(whatsappSettings.phoneNumberId, phoneNumberId))
     .limit(1);
 
   return result.length > 0 ? result[0] : undefined;

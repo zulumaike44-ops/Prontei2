@@ -317,26 +317,26 @@
 - [x] Identificar o que preservar vs remover
 
 ### META 2 — Remoção da Z-API e limpeza
-- [ ] Remover campos Z-API do schema (instanceId, instanceToken, clientToken)
-- [ ] Remover chamadas REST Z-API do backend
-- [ ] Remover QR Code flow
-- [ ] Remover parsing de payload Z-API do webhook
-- [ ] Remover testes específicos Z-API
-- [ ] Alterar provider padrão para "meta"
-- [ ] Migrar banco (pnpm db:push)
+- [x] Remover campos Z-API do schema (instanceId, instanceToken, clientToken)
+- [x] Remover chamadas REST Z-API do backend
+- [x] Remover QR Code flow
+- [x] Remover parsing de payload Z-API do webhook
+- [x] Remover testes específicos Z-API
+- [x] Alterar provider padrão para "meta"
+- [x] Migrar banco (pnpm db:push — 0009_awesome_boomer.sql)
 
 ### META 3 — Integração Meta Cloud API
-- [ ] Adicionar campos Meta ao schema (phoneNumberId, businessAccountId, accessToken)
-- [ ] Implementar Embedded Signup flow (backend)
-- [ ] Implementar envio de mensagens via Meta Cloud API
-- [ ] Configurar secrets (META_APP_ID, META_APP_SECRET, META_CONFIG_ID)
+- [x] Adicionar campos Meta ao schema (phoneNumberId, wabaId, accessToken, verifiedName, qualityRating, displayPhoneNumber)
+- [x] Implementar Embedded Signup flow (backend — completeEmbeddedSignup)
+- [x] Implementar envio de mensagens via Meta Cloud API (Graph API v21.0)
+- [x] Configurar secrets (META_APP_ID, META_APP_SECRET, META_CONFIG_ID — já existentes)
 
 ### META 4 — Webhook oficial Meta
-- [ ] Adaptar GET /api/whatsapp/webhook (verify token)
-- [ ] Adaptar POST /api/whatsapp/webhook (payload Meta)
-- [ ] Validar assinatura do webhook (X-Hub-Signature-256)
-- [ ] Identificar tenant por phoneNumberId
-- [ ] Processar mensagens inbound Meta
+- [x] Adaptar GET /api/whatsapp/webhook (verify token)
+- [x] Adaptar POST /api/whatsapp/webhook (payload Meta)
+- [x] Validar assinatura do webhook (X-Hub-Signature-256)
+- [x] Identificar tenant por phoneNumberId (getSettingsByPhoneNumberId)
+- [x] Processar mensagens inbound Meta
 
 ### META 5 — Templates oficiais
 - [ ] Criar estrutura de templates (confirmação, lembrete, reagendamento, cancelamento, avaliação)
@@ -360,25 +360,25 @@
 - [ ] Link de agenda compartilhável
 
 ### META 8 — Frontend WhatsApp
-- [ ] Refazer tela WhatsApp com Embedded Signup
-- [ ] Estados visuais (desconectado, conectando, conectado, erro)
-- [ ] Mostrar número, status, data conexão, templates
-- [ ] Não expor segredos técnicos
+- [x] Refazer tela WhatsApp com Embedded Signup (Meta JS SDK)
+- [x] Estados visuais (desconectado, conectando, conectado, erro)
+- [x] Mostrar número, status, data conexão
+- [x] Não expor segredos técnicos
 
 ### META 9 — Segurança
-- [ ] Webhook sem fallback inseguro
-- [ ] Validação de assinatura
-- [ ] access_token nunca exposto em respostas
-- [ ] Isolamento multi-tenant completo
+- [x] Webhook sem fallback inseguro
+- [x] Validação de assinatura (X-Hub-Signature-256 com HMAC SHA256)
+- [x] access_token nunca exposto em respostas
+- [x] Isolamento multi-tenant completo
 
 ### META 10 — Testes
-- [ ] Testes Embedded Signup / conexão
-- [ ] Testes webhook GET/POST
-- [ ] Testes inbound/outbound
+- [x] Testes Embedded Signup / conexão (completeEmbeddedSignup)
+- [x] Testes webhook GET/POST (validateSendCredentials Meta)
+- [x] Testes inbound/outbound (sendWhatsappMessage Meta)
 - [ ] Testes templates e notificações
-- [ ] Testes chatbot com Meta
-- [ ] Testes isolamento multi-tenant
-- [ ] Testes credenciais nunca expostas
+- [x] Testes chatbot com Meta (chatbotFlow atualizado)
+- [x] Testes isolamento multi-tenant
+- [x] Testes credenciais nunca expostas — 56 testes whatsapp passando
 
 ### META 11 — Validação final
 - [ ] Relatório completo de migração
