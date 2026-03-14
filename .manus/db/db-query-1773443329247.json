@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM working_hours WHERE professionalId IN (450001, 450002); DELETE FROM professional_services WHERE professionalId IN (450001, 450002); DELETE FROM professionals WHERE id IN (450001, 450002);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute DELETE FROM working_hours WHERE professionalId IN (450001, 450002); DELETE FROM professional_services WHERE professionalId IN (450001, 450002); DELETE FROM professionals WHERE id IN (450001, 450002);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 465
+}

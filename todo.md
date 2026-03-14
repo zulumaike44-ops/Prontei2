@@ -264,3 +264,40 @@
 - [x] Adicionar meta tags PWA no index.html
 - [x] Testar e validar instalação
 - [x] Entregar link de instalação ao usuário
+
+## RENOMEAÇÃO — Agiliza no Zap → Prontei
+- [ ] Buscar todas as referências ao nome antigo
+- [ ] Atualizar VITE_APP_TITLE para "Prontei"
+- [ ] Atualizar referências em código fonte
+- [ ] Testar e validar
+
+## BUG — Client-Token não enviado nas chamadas Z-API
+- [x] Corrigir getQrCode para enviar Client-Token no header (já enviava, problema era clientToken null no banco)
+- [x] Corrigir testConnection (getStatus) para enviar Client-Token (já enviava)
+- [x] Corrigir sendWhatsappMessage para enviar Client-Token (já enviava)
+- [x] Testar e validar (clientToken inserido no banco, Z-API retornou connected)
+
+## Limpeza de dados — Excluir profissionais
+- [x] Excluir profissionais BARBARA JARDIM (450001) e ZE MARIA (450002) do SALAO TESTE
+- [x] Excluir working_hours associados (7 registros removidos)
+- [x] Excluir vínculos professional_services associados (1 registro removido)
+- [x] Verificar e confirmar exclusão (0 profissionais, 0 working_hours, 0 professional_services)
+
+## Roteiro de Onboarding — Ativação WhatsApp para salões
+- [x] Criar roteiro completo de ativação do WhatsApp para novos clientes
+
+## BUG — establishment.mine retorna undefined
+- [x] Diagnosticar causa do erro "establishment.mine data is undefined" (ownerId divergente: user 1440001 vs establishment ownerId 1290018)
+- [x] Corrigir o problema (UPDATE ownerId para 1440001)
+- [x] Testar e validar (painel carregando corretamente)
+
+## BUG — Z-API send-text não conecta
+- [x] Testar endpoint Z-API diretamente (curl) — HTTP 200, mensagem enviada com sucesso
+- [x] Verificar status da instância Z-API — connected: true
+- [x] Verificar código do Prontei que chama Z-API — credenciais no banco estavam de outra instância
+- [x] Corrigir o problema — atualizado instanceId, instanceToken, clientToken e status para connected
+
+## BUG — "your client-token is not configured" na tela WhatsApp
+- [x] Investigar como Client-Token é enviado nas chamadas getQrCode e testConnection
+- [x] Corrigir envio do Client-Token (tornar obrigatório no frontend e backend + mensagem de erro específica)
+- [x] Testar e validar (59 testes whatsapp passando, TypeScript sem erros)

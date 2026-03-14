@@ -1,0 +1,8 @@
+{
+  "query": "UPDATE whatsapp_settings SET client_token = 'Fac749ddd94ef41688f251dc8695d69d2S' WHERE id = 60001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute UPDATE whatsapp_settings SET client_token = 'Fac749ddd94ef41688f251dc8695d69d2S' WHERE id = 60001;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'client_token' in 'field list'"
+  ]
+}

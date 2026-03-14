@@ -1,0 +1,61 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "TABLE_NAME": "working_hours"
+    },
+    {
+      "TABLE_NAME": "whatsapp_settings"
+    },
+    {
+      "TABLE_NAME": "whatsapp_messages"
+    },
+    {
+      "TABLE_NAME": "whatsapp_conversations"
+    },
+    {
+      "TABLE_NAME": "users"
+    },
+    {
+      "TABLE_NAME": "subscription_plans"
+    },
+    {
+      "TABLE_NAME": "services"
+    },
+    {
+      "TABLE_NAME": "professionals"
+    },
+    {
+      "TABLE_NAME": "professional_services"
+    },
+    {
+      "TABLE_NAME": "establishments"
+    },
+    {
+      "TABLE_NAME": "customers"
+    },
+    {
+      "TABLE_NAME": "business_types"
+    },
+    {
+      "TABLE_NAME": "blocked_times"
+    },
+    {
+      "TABLE_NAME": "audit_logs"
+    },
+    {
+      "TABLE_NAME": "appointments"
+    },
+    {
+      "TABLE_NAME": "appointment_status_history"
+    },
+    {
+      "TABLE_NAME": "__drizzle_migrations"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\nworking_hours\nwhatsapp_settings\nwhatsapp_messages\nwhatsapp_conversations\nusers\nsubscription_plans\nservices\nprofessionals\nprofessional_services\nestablishments\ncustomers\nbusiness_types\nblocked_times\naudit_logs\nappointments\nappointment_status_history\n__drizzle_migrations\n",
+  "stderr": "",
+  "execution_time_ms": 342
+}

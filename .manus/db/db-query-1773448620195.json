@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE whatsapp_settings SET instanceId = '3F006F9F9E8FB121D3764A9C06F44763', instanceToken = '8B02F64979BF7613E9405734', clientToken = 'Fac749ddd94ef41688f251dc8695d69d2S', status = 'connected', connectedAt = NOW() WHERE establishmentId = 150001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute UPDATE whatsapp_settings SET instanceId = '3F006F9F9E8FB121D3764A9C06F44763', instanceToken = '8B02F64979BF7613E9405734', clientToken = 'Fac749ddd94ef41688f251dc8695d69d2S', status = 'connected', connectedAt = NOW() WHERE establishmentId = 150001;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 370
+}

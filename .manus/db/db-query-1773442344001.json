@@ -1,0 +1,26 @@
+{
+  "query": "SELECT * FROM whatsapp_settings;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT * FROM whatsapp_settings;",
+  "rows": [
+    {
+      "id": "60001",
+      "establishmentId": "150001",
+      "isEnabled": "0",
+      "phoneNumber": "NULL",
+      "provider": "z-api",
+      "autoReplyEnabled": "1",
+      "autoReplyMessage": "NULL",
+      "createdAt": "2026-03-13 22:23:26",
+      "updatedAt": "2026-03-13 22:46:19",
+      "instanceId": "NULL",
+      "instanceToken": "NULL",
+      "clientToken": "NULL",
+      "status": "disconnected",
+      "connectedAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\testablishmentId\tisEnabled\tphoneNumber\tprovider\tautoReplyEnabled\tautoReplyMessage\tcreatedAt\tupdatedAt\tinstanceId\tinstanceToken\tclientToken\tstatus\tconnectedAt\n60001\t150001\t0\tNULL\tz-api\t1\tNULL\t2026-03-13 22:23:26\t2026-03-13 22:46:19\tNULL\tNULL\tNULL\tdisconnected\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 346
+}

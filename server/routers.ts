@@ -1535,7 +1535,7 @@ export const appRouter = router({
         z.object({
           instanceId: z.string().min(1, "Instance ID é obrigatório"),
           instanceToken: z.string().min(1, "Instance Token é obrigatório"),
-          clientToken: z.string().optional().nullable(),
+          clientToken: z.string().min(1, "Client Token é obrigatório"),
           phoneNumber: z.string().max(20).optional().nullable(),
         })
       )
@@ -1638,6 +1638,14 @@ export const appRouter = router({
             establishmentId: establishment.id,
             status: newStatus,
           });
+          // Detect client-token error specifically
+          if (data.error?.toLowerCase()?.includes("client-token")) {
+            return {
+              success: false,
+              error: "Client Token não configurado. Vá em 'Alterar credenciais' e preencha o Client Token.",
+              errorCode: "CLIENT_TOKEN_MISSING",
+            };
+          }
           return {
             success: false,
             error: data.error ?? "Instância não conectada. Escaneie o QR Code novamente.",
@@ -1705,6 +1713,13 @@ export const appRouter = router({
               success: false,
               alreadyConnected: true,
               error: "Já conectado! Não é necessário escanear o QR Code.",
+            };
+          }
+          // Detect client-token error specifically
+          if (errorData?.error?.toLowerCase()?.includes("client-token")) {
+            return {
+              success: false,
+              error: "Client Token não configurado. Vá em 'Alterar credenciais' e preencha o Client Token.",
             };
           }
           return {

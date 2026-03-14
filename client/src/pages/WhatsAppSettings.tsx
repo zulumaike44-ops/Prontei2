@@ -205,14 +205,16 @@ export default function WhatsAppSettings() {
   }, []);
 
   function handleSaveCredentials() {
-    if (!instanceId.trim() || !instanceToken.trim()) {
-      toast.error("Preencha o Instance ID e o Instance Token.");
+    if (!instanceId.trim() || !instanceToken.trim() || !clientToken.trim()) {
+      toast.error("Preencha todos os campos obrigatórios.", {
+        description: "Instance ID, Instance Token e Client Token são obrigatórios.",
+      });
       return;
     }
     saveCredentialsMutation.mutate({
       instanceId: instanceId.trim(),
       instanceToken: instanceToken.trim(),
-      clientToken: clientToken.trim() || null,
+      clientToken: clientToken.trim(),
     });
   }
 
@@ -680,7 +682,7 @@ export default function WhatsAppSettings() {
 
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">
-                  Client Token <span className="text-muted-foreground">(recomendado)</span>
+                  Client Token <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   type="password"
@@ -689,7 +691,7 @@ export default function WhatsAppSettings() {
                   onChange={(e) => setClientToken(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Token de segurança da sua conta Z-API. Encontre em Segurança no painel.
+                  Obrigatório. Token de segurança da sua conta Z-API. No painel Z-API, vá em seu perfil → Segurança → copie o token.
                 </p>
               </div>
             </div>
@@ -704,7 +706,7 @@ export default function WhatsAppSettings() {
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white"
                 onClick={handleSaveCredentials}
-                disabled={saveCredentialsMutation.isPending || !instanceId.trim() || !instanceToken.trim()}
+                disabled={saveCredentialsMutation.isPending || !instanceId.trim() || !instanceToken.trim() || !clientToken.trim()}
               >
                 {saveCredentialsMutation.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

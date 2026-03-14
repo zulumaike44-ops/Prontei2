@@ -1,0 +1,34 @@
+{
+  "query": "SELECT id, name, slug, ownerId FROM establishments; SELECT id, name, establishmentId, isActive FROM professionals WHERE establishmentId = 150001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT id, name, slug, ownerId FROM establishments; SELECT id, name, establishmentId, isActive FROM professionals WHERE establishmentId = 150001;",
+  "rows": [
+    {
+      "id": "150001",
+      "name": "SALAO TESTE",
+      "slug": "salao-teste",
+      "ownerId": "1290018"
+    },
+    {
+      "id": "id",
+      "name": "name",
+      "slug": "establishmentId",
+      "ownerId": "isActive"
+    },
+    {
+      "id": "450001",
+      "name": "BARBARA JARDIM",
+      "slug": "150001",
+      "ownerId": "1"
+    },
+    {
+      "id": "450002",
+      "name": "ZE MARIA",
+      "slug": "150001",
+      "ownerId": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tslug\townerId\n150001\tSALAO TESTE\tsalao-teste\t1290018\nid\tname\testablishmentId\tisActive\n450001\tBARBARA JARDIM\t150001\t1\n450002\tZE MARIA\t150001\t1\n",
+  "stderr": "",
+  "execution_time_ms": 412
+}

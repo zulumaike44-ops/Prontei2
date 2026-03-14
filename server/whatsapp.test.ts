@@ -156,7 +156,24 @@ describe("whatsapp router", () => {
       }
     });
 
-    it("accepts optional clientToken as null", async () => {
+    it("rejects missing clientToken", async () => {
+      const ctx = createAuthenticatedContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        await caller.whatsapp.saveZApiCredentials({
+          instanceId: "A20DA9C0183A2D35A260F53F5D2B9244",
+          instanceToken: "test_token_12345",
+          clientToken: "",
+        } as any);
+        // Should not reach here
+        expect(true).toBe(false);
+      } catch (error: any) {
+        expect(error.code).toBe("BAD_REQUEST");
+      }
+    });
+
+    it("accepts valid clientToken", async () => {
       const ctx = createAuthenticatedContext();
       const caller = appRouter.createCaller(ctx);
 
@@ -164,12 +181,13 @@ describe("whatsapp router", () => {
         const result = await caller.whatsapp.saveZApiCredentials({
           instanceId: "A20DA9C0183A2D35A260F53F5D2B9244",
           instanceToken: "test_token_12345",
-          clientToken: null,
+          clientToken: "valid_client_token_123",
         });
 
         expect(result).toBeDefined();
         expect(result.success).toBe(true);
       } catch (error: any) {
+        // May fail with NOT_FOUND if no establishment, that's ok
         expect(error.code).toBe("NOT_FOUND");
       }
     });
@@ -515,6 +533,7 @@ describe("whatsapp router", () => {
         await otherCaller.whatsapp.saveZApiCredentials({
           instanceId: "ABC123",
           instanceToken: "TOKEN456",
+          clientToken: "CLIENT789",
         });
       } catch (error: any) {
         expect(error.code).toBe("NOT_FOUND");
