@@ -1,0 +1,8 @@
+{
+  "query": "SELECT c.id, c.name, c.phone, c.email, c.createdAt, e.name as establishment_name, e.id as establishment_id FROM clients c JOIN establishments e ON c.establishmentId = e.id ORDER BY c.createdAt DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT c.id, c.name, c.phone, c.email, c.createdAt, e.name as establishment_name, e.id as establishment_id FROM clients c JOIN establishments e ON c.establishmentId = e.id ORDER BY c.createdAt DESC;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table 'divfgdbrhmip7ymc8wh9rb.clients' doesn't exist"
+  ]
+}

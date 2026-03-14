@@ -301,3 +301,84 @@
 - [x] Investigar como Client-Token é enviado nas chamadas getQrCode e testConnection
 - [x] Corrigir envio do Client-Token (tornar obrigatório no frontend e backend + mensagem de erro específica)
 - [x] Testar e validar (59 testes whatsapp passando, TypeScript sem erros)
+
+## Análise minuciosa — Conexão Z-API não funciona
+- [x] Analisar estado completo da Z-API no banco de dados
+- [x] Analisar código backend (routers, webhook, envio de mensagens)
+- [x] Testar endpoints Z-API diretamente (curl) — endpoints autenticados dão timeout
+- [x] Analisar código frontend (WhatsAppSettings)
+- [x] Analisar logs do servidor
+- [x] Compilar relatório completo de análise
+
+## MIGRAÇÃO Z-API → META CLOUD API
+
+### META 1 — Diagnóstico da arquitetura atual
+- [x] Mapear todos os arquivos que referenciam Z-API
+- [x] Identificar o que preservar vs remover
+
+### META 2 — Remoção da Z-API e limpeza
+- [ ] Remover campos Z-API do schema (instanceId, instanceToken, clientToken)
+- [ ] Remover chamadas REST Z-API do backend
+- [ ] Remover QR Code flow
+- [ ] Remover parsing de payload Z-API do webhook
+- [ ] Remover testes específicos Z-API
+- [ ] Alterar provider padrão para "meta"
+- [ ] Migrar banco (pnpm db:push)
+
+### META 3 — Integração Meta Cloud API
+- [ ] Adicionar campos Meta ao schema (phoneNumberId, businessAccountId, accessToken)
+- [ ] Implementar Embedded Signup flow (backend)
+- [ ] Implementar envio de mensagens via Meta Cloud API
+- [ ] Configurar secrets (META_APP_ID, META_APP_SECRET, META_CONFIG_ID)
+
+### META 4 — Webhook oficial Meta
+- [ ] Adaptar GET /api/whatsapp/webhook (verify token)
+- [ ] Adaptar POST /api/whatsapp/webhook (payload Meta)
+- [ ] Validar assinatura do webhook (X-Hub-Signature-256)
+- [ ] Identificar tenant por phoneNumberId
+- [ ] Processar mensagens inbound Meta
+
+### META 5 — Templates oficiais
+- [ ] Criar estrutura de templates (confirmação, lembrete, reagendamento, cancelamento, avaliação)
+- [ ] Implementar envio de template via Meta API
+- [ ] Suporte a variáveis, botões, header/body/footer
+
+### META 6 — Notificações automáticas
+- [ ] Criar WhatsAppNotificationService
+- [ ] Confirmação de agendamento
+- [ ] Lembrete de agendamento
+- [ ] Cancelamento de agendamento
+- [ ] Reagendamento
+- [ ] Lógica janela 24h (texto livre vs template)
+
+### META 7 — Reformulação do agendamento
+- [ ] Reagendar com facilidade
+- [ ] Confirmação clara antes de criar appointment
+- [ ] Calendário visual melhorado (verde/amarelo/cinza)
+- [ ] Alterar agendamento facilmente
+- [ ] Cancelamento simples
+- [ ] Link de agenda compartilhável
+
+### META 8 — Frontend WhatsApp
+- [ ] Refazer tela WhatsApp com Embedded Signup
+- [ ] Estados visuais (desconectado, conectando, conectado, erro)
+- [ ] Mostrar número, status, data conexão, templates
+- [ ] Não expor segredos técnicos
+
+### META 9 — Segurança
+- [ ] Webhook sem fallback inseguro
+- [ ] Validação de assinatura
+- [ ] access_token nunca exposto em respostas
+- [ ] Isolamento multi-tenant completo
+
+### META 10 — Testes
+- [ ] Testes Embedded Signup / conexão
+- [ ] Testes webhook GET/POST
+- [ ] Testes inbound/outbound
+- [ ] Testes templates e notificações
+- [ ] Testes chatbot com Meta
+- [ ] Testes isolamento multi-tenant
+- [ ] Testes credenciais nunca expostas
+
+### META 11 — Validação final
+- [ ] Relatório completo de migração
