@@ -149,22 +149,31 @@ export default function WhatsAppSettings() {
 
   // Load Facebook SDK
   useEffect(() => {
+    const appId = metaConfig?.appId;
+    if (!appId) return;
+
+    const initFB = () => {
+      if (window.FB) {
+        window.FB.init({
+          appId,
+          autoLogAppEvents: true,
+          xfbml: true,
+          version: "v21.0",
+        });
+        setFbSdkLoaded(true);
+      }
+    };
+
+    // If SDK already loaded (e.g. navigated back), re-init
     if (window.FB) {
-      setFbSdkLoaded(true);
+      initFB();
       return;
     }
 
-    window.fbAsyncInit = function () {
-      window.FB.init({
-        appId: metaConfig?.appId ?? "",
-        autoLogAppEvents: true,
-        xfbml: true,
-        version: "v21.0",
-      });
-      setFbSdkLoaded(true);
-    };
+    // Set callback for when SDK finishes loading
+    window.fbAsyncInit = initFB;
 
-    // Load SDK script
+    // Load SDK script if not already in DOM
     if (!document.getElementById("facebook-jssdk")) {
       const script = document.createElement("script");
       script.id = "facebook-jssdk";
@@ -215,8 +224,8 @@ export default function WhatsAppSettings() {
 
   // Launch Embedded Signup
   function launchEmbeddedSignup() {
-    if (!window.FB) {
-      toast.error("Facebook SDK não carregou. Recarregue a página e tente novamente.");
+    if (!window.FB || !fbSdkLoaded) {
+      toast.error("Facebook SDK ainda não carregou. Aguarde um momento e tente novamente.");
       return;
     }
 

@@ -382,3 +382,8 @@
 
 ### META 11 — Validação final
 - [ ] Relatório completo de migração
+
+## BUG — FB.login() called before FB.init()
+- [x] Diagnosticar problema de inicialização do Facebook SDK no Embedded Signup (window.FB existia mas FB.init não era chamado ao navegar de volta)
+- [x] Corrigir ordem de inicialização (sempre chamar FB.init quando window.FB já existe + verificar fbSdkLoaded antes de FB.login)
+- [x] Testar e validar (56 testes passando, TypeScript sem erros)
