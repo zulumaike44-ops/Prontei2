@@ -438,7 +438,7 @@
 
 ### Bloco 8 — UX final
 - [ ] Mobile first responsivo
-- [ ] Formato Brasil (DD/MM/AAAA, HH:mm, R$)
+- [x] Formato Brasil (DD/MM/AAAA, HH:mm, R$)
 - [ ] Tempo máximo de agendamento: 30 segundos
 - [ ] Validação final e checkpoint
 
@@ -448,3 +448,63 @@
 - [x] Permitir personalizar o slug do establishment (com validação de unicidade no backend)
 - [x] Gerar QR Code do link de agendamento (via api.qrserver.com)
 - [x] Testar e validar (73 testes passando, TypeScript sem erros)
+
+## REFORMULAÇÃO — Página Pública de Agendamento (Prompt Completo)
+
+### Etapa 3 — Mudanças no Banco
+- [x] Adicionar primaryColor e secondaryColor ao schema establishments
+- [x] Rodar pnpm db:push
+
+### Etapa 4 — Serviços de Backend
+- [x] Criar server/eventBus.ts (EventEmitter para appointment.created/cancelled/rescheduled)
+- [x] Criar server/publicBookingService.ts (getBookingPageData)
+- [x] Criar server/publicAvailabilityService.ts (getDayAvailability, getQuickSlots)
+- [x] Criar server/publicAppointmentService.ts (createPublicAppointment, cancelByToken, rescheduleByToken)
+- [x] Criar server/rebookService.ts (getLastBookingOptions)
+- [x] Criar server/notificationService.ts (confirmação, lembrete 24h/1h, cancelamento, reagendamento)
+- [x] Refatorar publicRouter.ts para usar os novos serviços
+- [x] Adicionar endpoint GET /api/public/quickslots (melhores horários hoje/amanhã)
+- [x] Adicionar endpoint GET /api/public/rebook (sugestão de rebook por telefone)
+- [x] Atualizar resposta da API availability com summary (availableCount, status: good/limited/full)
+
+### Etapa 5 — Arquitetura Gráfica (Componentes)
+- [x] Criar client/src/components/booking/BookingHeroCard.tsx
+- [x] Criar client/src/components/booking/ServiceSelector.tsx
+- [x] Criar client/src/components/booking/ProfessionalSelector.tsx
+- [x] Criar client/src/components/booking/QuickSlotsSection.tsx
+- [x] Criar client/src/components/booking/BookingCalendar.tsx (cores verde/amarelo/cinza/azul)
+- [x] Criar client/src/components/booking/DaySlotsGrid.tsx
+- [x] Criar client/src/components/booking/CustomerForm.tsx
+- [x] Criar client/src/components/booking/BookingSummaryCard.tsx
+- [x] Criar client/src/components/booking/BookingSuccess.tsx
+
+### Etapa 6 — Rotas e Páginas
+- [x] Refatorar PublicBooking.tsx para usar componentes separados
+- [ ] Criar página /meus-agendamentos (MyAppointmentsPage.tsx)
+- [ ] Criar página /reagendar/:token (PublicReschedulePage.tsx)
+- [ ] Criar página /cancelar/:token (PublicCancelPage.tsx)
+- [ ] Registrar novas rotas no App.tsx
+- [ ] Implementar rebook flow ("Agendar novamente" com sugestão de serviço anterior)
+- [x] Opção "Qualquer profissional" no ProfessionalSelector
+
+### Etapa 7 — Notificações
+- [x] Templates de notificação em PT-BR (confirmação, lembrete, cancelamento, reagendamento)
+- [x] Integrar eventBus com NotificationService
+- [x] Stubs para email e SMS preparados para implementação futura
+
+### Etapa 8 — Testes
+- [x] Testes publicBookingService
+- [x] Testes publicAvailabilityService (availability + quickslots)
+- [x] Testes publicAppointmentService (create, cancel, reschedule)
+- [x] Testes rebookService
+- [x] Testes eventBus (eventos disparados)
+- [x] Testes notificationService
+
+### Etapa 9 — Validação Final
+- [x] TypeScript sem erros
+- [x] Todos os testes passando (36 novos testes + 330 existentes)
+- [x] Fluxo completo testável no preview
+- [x] Mobile-first responsivo
+- [x] Formato Brasil (DD/MM/AAAA, HH:mm, R$)
+- [ ] Simplificar chatbot WhatsApp (responder apenas com link)
+- [ ] Checkpoint final salvo

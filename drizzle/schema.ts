@@ -100,6 +100,8 @@ export const establishments = mysqlTable("establishments", {
   addressCity: varchar("addressCity", { length: 100 }),
   addressState: char("addressState", { length: 2 }),
   timezone: varchar("timezone", { length: 50 }).default("America/Sao_Paulo").notNull(),
+  primaryColor: varchar("primaryColor", { length: 7 }).default("#0F172A").notNull(),
+  secondaryColor: varchar("secondaryColor", { length: 7 }).default("#F8FAFC").notNull(),
   onboardingStep: smallint("onboardingStep").default(1).notNull(),
   onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
   isActive: boolean("isActive").default(true).notNull(),

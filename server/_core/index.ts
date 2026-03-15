@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleWebhookVerification, handleWebhookMessage } from "../whatsappWebhook";
 import { registerPublicRoutes } from "../publicRouter";
+import { initNotificationService } from "../notificationService";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -42,6 +43,8 @@ async function startServer() {
   app.post("/api/whatsapp/webhook", handleWebhookMessage);
   // Public booking routes (no auth required)
   registerPublicRoutes(app);
+  // Initialize notification service (listens to appointment events)
+  initNotificationService();
   // tRPC API
   app.use(
     "/api/trpc",

@@ -1,9 +1,12 @@
+/**
+ * PublicAppointmentManage — Página pública de gerenciamento de agendamento
+ *
+ * Permite visualizar detalhes, cancelar e reagendar.
+ * Mobile-first, visual consistente com a página de booking.
+ */
+
 import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Loader2,
   CheckCircle2,
@@ -13,7 +16,10 @@ import {
   Scissors,
   User,
   AlertTriangle,
-  ChevronLeft,
+  CalendarPlus,
+  AlertCircle,
+  DollarSign,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,6 +42,33 @@ interface AppointmentData {
   manageToken: string;
   cancelledAt: string | null;
   cancellationReason: string | null;
+}
+
+const STATUS_MAP: Record<string, { label: string; bgColor: string; textColor: string; Icon: any }> = {
+  confirmed: { label: "Confirmado", bgColor: "#dcfce7", textColor: "#15803d", Icon: CheckCircle2 },
+  pending: { label: "Pendente", bgColor: "#fef9c3", textColor: "#a16207", Icon: Clock },
+  cancelled: { label: "Cancelado", bgColor: "#fee2e2", textColor: "#b91c1c", Icon: XCircle },
+  completed: { label: "Concluído", bgColor: "#dbeafe", textColor: "#1d4ed8", Icon: CheckCircle2 },
+  no_show: { label: "Não compareceu", bgColor: "#f3f4f6", textColor: "#6b7280", Icon: AlertCircle },
+};
+
+function formatPrice(price: string): string {
+  const num = parseFloat(price);
+  if (isNaN(num) || num === 0) return "Grátis";
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(num);
+}
+
+function formatDateTime(dateStr: string) {
+  const date = new Date(dateStr);
+  return {
+    date: date.toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }),
+    time: date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+  };
 }
 
 export default function PublicAppointmentManage() {
@@ -83,7 +116,6 @@ export default function PublicAppointmentManage() {
         throw new Error(err.error || "Erro ao cancelar.");
       }
       toast.success("Agendamento cancelado com sucesso.");
-      // Reload appointment data
       const updated = await fetch(`/api/public/appointments/${token}`).then((r) => r.json());
       setAppointment(updated);
       setShowCancelConfirm(false);
@@ -94,228 +126,194 @@ export default function PublicAppointmentManage() {
     }
   };
 
-  const formatPrice = (price: string) => {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(parseFloat(price));
-  };
-
-  const formatDateTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return {
-      date: date.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
-      time: date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-    };
-  };
-
-  const getStatusInfo = (status: string) => {
-    switch (status) {
-      case "confirmed":
-        return { label: "Confirmado", color: "text-green-700 bg-green-100", icon: CheckCircle2 };
-      case "pending":
-        return { label: "Pendente", color: "text-yellow-700 bg-yellow-100", icon: Clock };
-      case "cancelled":
-        return { label: "Cancelado", color: "text-red-700 bg-red-100", icon: XCircle };
-      case "completed":
-        return { label: "Concluído", color: "text-blue-700 bg-blue-100", icon: CheckCircle2 };
-      default:
-        return { label: status, color: "text-gray-700 bg-gray-100", icon: Clock };
-    }
-  };
+  // ============================================================
+  // LOADING / ERROR
+  // ============================================================
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (error || !appointment) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center">
-          <CardContent className="pt-8 pb-8">
-            <div className="text-5xl mb-4">😕</div>
-            <h2 className="text-xl font-bold mb-2">Agendamento não encontrado</h2>
-            <p className="text-muted-foreground">
-              Verifique se o link está correto ou entre em contato com o estabelecimento.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-sm w-full text-center space-y-4">
+          <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground" />
+          <h2 className="text-lg font-bold text-foreground">Agendamento não encontrado</h2>
+          <p className="text-sm text-muted-foreground">
+            Verifique se o link está correto ou entre em contato com o estabelecimento.
+          </p>
+        </div>
       </div>
     );
   }
 
-  const statusInfo = getStatusInfo(appointment.status);
-  const StatusIcon = statusInfo.icon;
+  const statusInfo = STATUS_MAP[appointment.status] || STATUS_MAP.pending;
+  const StatusIcon = statusInfo.Icon;
   const { date: formattedDate, time: formattedTime } = formatDateTime(appointment.date);
-  const canCancel = ["pending", "confirmed"].includes(appointment.status) && new Date(appointment.date).getTime() > Date.now();
+  const canCancel =
+    ["pending", "confirmed"].includes(appointment.status) &&
+    new Date(appointment.date).getTime() > Date.now();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
-      {/* Header */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="max-w-lg mx-auto px-4 py-4">
-          <h1 className="font-bold text-lg">{appointment.establishmentName}</h1>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-md mx-auto px-4 py-5 space-y-5">
+        {/* Header */}
+        <div className="text-center space-y-1">
+          <h1 className="text-lg font-bold text-foreground">{appointment.establishmentName}</h1>
           <p className="text-xs text-muted-foreground">Detalhes do agendamento</p>
         </div>
-      </div>
 
-      <div className="max-w-lg mx-auto px-4 py-6">
         {/* Status Badge */}
-        <div className="flex items-center justify-center mb-6">
-          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${statusInfo.color}`}>
+        <div className="flex justify-center">
+          <span
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold"
+            style={{
+              backgroundColor: statusInfo.bgColor,
+              color: statusInfo.textColor,
+            }}
+          >
             <StatusIcon className="w-4 h-4" />
             {statusInfo.label}
-          </div>
+          </span>
         </div>
 
-        {/* Appointment Details */}
-        <Card className="mb-4">
-          <CardContent className="pt-6 pb-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                <Scissors className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <div className="font-medium">{appointment.serviceName}</div>
-                <div className="text-xs text-muted-foreground">{appointment.durationMinutes} minutos</div>
-              </div>
-              <div className="ml-auto font-bold text-primary">{formatPrice(appointment.price)}</div>
+        {/* Appointment Details Card */}
+        <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <Scissors className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">{appointment.serviceName}</p>
+              <p className="text-xs text-muted-foreground">{appointment.durationMinutes} minutos</p>
             </div>
+            <span className="text-sm font-bold text-foreground">
+              {formatPrice(appointment.price)}
+            </span>
+          </div>
 
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <div className="font-medium">{appointment.professionalName}</div>
-                <div className="text-xs text-muted-foreground">Profissional</div>
-              </div>
+          <div className="flex items-start gap-3">
+            <User className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+            <p className="text-sm text-foreground">{appointment.professionalName}</p>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Calendar className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+            <p className="text-sm text-foreground capitalize">{formattedDate}</p>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Clock className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+            <p className="text-sm text-foreground">{formattedTime}</p>
+          </div>
+
+          {appointment.notes && (
+            <div className="flex items-start gap-3 pt-2 border-t border-border">
+              <MessageSquare className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+              <p className="text-sm text-muted-foreground italic">"{appointment.notes}"</p>
             </div>
+          )}
 
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <div className="font-medium capitalize">{formattedDate}</div>
-                <div className="text-xs text-muted-foreground">Data</div>
-              </div>
+          {appointment.cancellationReason && (
+            <div className="rounded-lg p-3 text-sm" style={{ backgroundColor: "#fee2e2", color: "#b91c1c" }}>
+              <strong>Motivo do cancelamento:</strong> {appointment.cancellationReason}
             </div>
-
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                <Clock className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <div className="font-medium">{formattedTime}</div>
-                <div className="text-xs text-muted-foreground">Horário</div>
-              </div>
-            </div>
-
-            {appointment.notes && (
-              <div className="bg-muted/50 rounded-md p-3 text-sm text-muted-foreground">
-                <strong>Observações:</strong> {appointment.notes}
-              </div>
-            )}
-
-            {appointment.cancellationReason && (
-              <div className="bg-red-50 rounded-md p-3 text-sm text-red-700">
-                <strong>Motivo do cancelamento:</strong> {appointment.cancellationReason}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          )}
+        </div>
 
         {/* Actions */}
         {canCancel && !showCancelConfirm && (
           <div className="space-y-2">
             <Link href={`/agendar/${appointment.establishmentSlug}`}>
-              <Button variant="outline" className="w-full">
+              <button className="w-full py-3 rounded-xl border border-border text-sm font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-2">
+                <CalendarPlus className="w-4 h-4" />
                 Fazer novo agendamento
-              </Button>
+              </button>
             </Link>
-            <Button
-              variant="ghost"
-              className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+            <button
               onClick={() => setShowCancelConfirm(true)}
+              className="w-full py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
             >
-              <XCircle className="w-4 h-4 mr-2" />
+              <XCircle className="w-4 h-4" />
               Cancelar agendamento
-            </Button>
+            </button>
           </div>
         )}
 
         {/* Cancel Confirmation */}
         {showCancelConfirm && (
-          <Card className="border-red-200 bg-red-50/50">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-                <h3 className="font-bold text-red-800">Cancelar agendamento?</h3>
-              </div>
-              <p className="text-sm text-red-700 mb-3">
-                Tem certeza que deseja cancelar? Esta ação não pode ser desfeita.
-              </p>
-              <div className="mb-3">
-                <Label className="text-sm text-red-700">Motivo (opcional)</Label>
-                <Textarea
-                  placeholder="Por que está cancelando?"
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  rows={2}
-                  className="mt-1"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  className="flex-1"
-                  onClick={() => setShowCancelConfirm(false)}
-                >
-                  Manter agendamento
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  onClick={handleCancel}
-                  disabled={cancelling}
-                >
-                  {cancelling ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Cancelando...
-                    </>
-                  ) : (
-                    "Sim, cancelar"
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="rounded-xl border-2 border-red-200 bg-red-50/50 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <h3 className="font-bold text-red-800 text-sm">Cancelar agendamento?</h3>
+            </div>
+            <p className="text-sm text-red-700">
+              Tem certeza que deseja cancelar? Esta ação não pode ser desfeita.
+            </p>
+            <div>
+              <label className="text-sm font-medium text-red-700 mb-1 block">
+                Motivo (opcional)
+              </label>
+              <textarea
+                placeholder="Por que está cancelando?"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 rounded-lg border border-red-200 text-sm bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-foreground bg-white hover:bg-muted transition-colors"
+              >
+                Manter
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {cancelling ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Cancelando...
+                  </>
+                ) : (
+                  "Sim, cancelar"
+                )}
+              </button>
+            </div>
+          </div>
         )}
 
-        {/* Already cancelled/completed */}
-        {!canCancel && appointment.status !== "cancelled" && (
-          <Link href={`/agendar/${appointment.establishmentSlug}`}>
-            <Button variant="outline" className="w-full">
-              Fazer novo agendamento
-            </Button>
-          </Link>
-        )}
-
+        {/* Already cancelled → Reagendar */}
         {appointment.status === "cancelled" && (
           <Link href={`/agendar/${appointment.establishmentSlug}`}>
-            <Button className="w-full">
+            <button className="w-full py-3 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 transition-colors flex items-center justify-center gap-2 shadow-md">
+              <CalendarPlus className="w-4 h-4" />
               Reagendar
-            </Button>
+            </button>
           </Link>
         )}
-      </div>
 
-      {/* Footer */}
-      <div className="text-center py-6 text-xs text-muted-foreground">
-        Agendamento online por <span className="font-medium">Prontei</span>
+        {/* Completed or no_show → New booking */}
+        {!canCancel && appointment.status !== "cancelled" && (
+          <Link href={`/agendar/${appointment.establishmentSlug}`}>
+            <button className="w-full py-3 rounded-xl border border-border text-sm font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-2">
+              <CalendarPlus className="w-4 h-4" />
+              Fazer novo agendamento
+            </button>
+          </Link>
+        )}
+
+        {/* Footer */}
+        <div className="text-center pt-4 pb-6 text-xs text-muted-foreground">
+          Agendamento online por <span className="font-medium">Prontei</span>
+        </div>
       </div>
     </div>
   );
