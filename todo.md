@@ -517,4 +517,15 @@
 ## Bug — Erro de runtime no site publicado
 - [x] Investigar crash "An unexpected error occurred" no prontei.manus.space
 - [x] Corrigir o bug (API retornava {summary} mas frontend esperava {appointment})
-- [ ] Testar e salvar checkpoint
+- [x] Testar e salvar checkpoint
+
+## PWA — App Instalável no Celular do Cliente
+- [x] Criar manifest.json com nome, cores, ícones e start_url (já existia, atualizado cores e shortcuts)
+- [x] Gerar ícones PWA (192x192 e 512x512) — já existiam em CDN, incluindo maskable
+- [x] Criar service worker v2 (cache-first CDN/fonts, network-first app, fallback offline)
+- [x] Registrar service worker no index.html (já existia)
+- [x] Adicionar meta tags PWA no index.html (theme-color atualizado para #8B4513)
+- [x] Configurar vite para copiar service worker no build (publicDir já configurado)
+- [x] Prompt de instalação PWA na tela de sucesso do agendamento
+- [x] Botão 'Ver meus agendamentos' na tela de sucesso
+- [x] Testar instalação PWA e salvar checkpoint

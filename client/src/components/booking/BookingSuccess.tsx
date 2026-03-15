@@ -1,11 +1,11 @@
 /**
  * BookingSuccess — Tela de sucesso após agendamento
  *
- * Exibe resumo, link de gerenciamento e opções de ação.
+ * Exibe resumo, link de gerenciamento, prompt de instalação PWA e opções de ação.
  */
 
-import { CheckCircle2, Copy, ExternalLink, CalendarPlus, Check } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, Copy, ExternalLink, CalendarPlus, Check, Download, ClipboardList } from "lucide-react";
+import { useState, useEffect } from "react";
 
 interface BookingSuccessProps {
   summary: {
@@ -32,8 +32,40 @@ export function BookingSuccess({
   onBookAgain,
 }: BookingSuccessProps) {
   const [copied, setCopied] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [installed, setInstalled] = useState(false);
 
   const manageUrl = `${window.location.origin}/agendamento/${manageToken}`;
+  const myAppointmentsUrl = `${window.location.origin}/meus-agendamentos?slug=${slug}`;
+
+  // Listen for PWA install prompt
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+
+    // Check if already installed
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setInstalled(true);
+    }
+
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  async function handleInstall() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setInstalled(true);
+      setShowInstallBanner(false);
+    }
+    setDeferredPrompt(null);
+  }
 
   async function handleCopy() {
     try {
@@ -145,8 +177,59 @@ export function BookingSuccess({
         </a>
       </div>
 
+      {/* PWA Install Banner */}
+      {showInstallBanner && !installed && (
+        <div
+          className="rounded-xl border-2 p-4 space-y-3"
+          style={{ borderColor: primaryColor, backgroundColor: `${primaryColor}08` }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: `${primaryColor}15` }}
+            >
+              <Download className="w-5 h-5" style={{ color: primaryColor }} />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-foreground">
+                Instalar Prontei no celular
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Acesse seus agendamentos direto da tela inicial, sem precisar de app store.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleInstall}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2"
+            style={{ backgroundColor: primaryColor }}
+          >
+            <Download className="w-4 h-4" />
+            Instalar agora
+          </button>
+        </div>
+      )}
+
+      {/* Installed confirmation */}
+      {installed && (
+        <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-3">
+          <p className="text-sm text-green-700 dark:text-green-400 flex items-center justify-center gap-2">
+            <Check className="w-4 h-4" />
+            Prontei instalado no seu celular!
+          </p>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="space-y-2">
+        <a
+          href={myAppointmentsUrl}
+          className="w-full py-3 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90 flex items-center justify-center gap-2"
+          style={{ backgroundColor: primaryColor }}
+        >
+          <ClipboardList className="w-4 h-4" />
+          Ver meus agendamentos
+        </a>
         <button
           onClick={onBookAgain}
           className="w-full py-3 rounded-xl text-sm font-medium border border-border bg-card hover:bg-muted transition-colors flex items-center justify-center gap-2 text-foreground"

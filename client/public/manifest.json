@@ -1,15 +1,17 @@
 {
-  "name": "Prontei - Agendamento Inteligente",
+  "name": "Prontei - Agendamento Online",
   "short_name": "Prontei",
-  "description": "Sistema de agendamento inteligente com chatbot WhatsApp. Gerencie sua agenda, clientes e serviços de qualquer lugar.",
+  "description": "Agende serviços de beleza e estética de forma rápida e prática, direto do seu celular.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#6366f1",
+  "background_color": "#FDF6EE",
+  "theme_color": "#8B4513",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "pt-BR",
-  "categories": ["business", "productivity"],
+  "dir": "ltr",
+  "categories": ["business", "lifestyle", "productivity"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663154679709/DiVfGDBrHmiP7YMc8Wh9rB/icon-72x72_cffbda2d.png",
@@ -70,6 +72,16 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Meus Agendamentos",
+      "short_name": "Agendamentos",
+      "description": "Ver meus agendamentos",
+      "url": "/meus-agendamentos",
+      "icons": []
     }
   ]
 }
