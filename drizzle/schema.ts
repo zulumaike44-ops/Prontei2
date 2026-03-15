@@ -264,6 +264,7 @@ export const appointments = mysqlTable("appointments", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   notes: text("notes"),
   source: varchar("source", { length: 20 }).default("manual").notNull(),
+  manageToken: varchar("manageToken", { length: 64 }),
   cancelledAt: datetime("cancelledAt"),
   cancellationReason: varchar("cancellationReason", { length: 255 }),
   createdBy: int("createdBy"),
@@ -275,6 +276,7 @@ export const appointments = mysqlTable("appointments", {
   index("idx_appt_start").on(table.establishmentId, table.startDatetime),
   index("idx_appt_customer").on(table.establishmentId, table.customerId),
   index("idx_appt_status").on(table.establishmentId, table.status),
+  uniqueIndex("uq_appt_manage_token").on(table.manageToken),
 ]);
 
 export type Appointment = typeof appointments.$inferSelect;

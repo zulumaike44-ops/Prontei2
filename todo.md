@@ -387,3 +387,57 @@
 - [x] Diagnosticar problema de inicialização do Facebook SDK no Embedded Signup (window.FB existia mas FB.init não era chamado ao navegar de volta)
 - [x] Corrigir ordem de inicialização (sempre chamar FB.init quando window.FB já existe + verificar fbSdkLoaded antes de FB.login)
 - [x] Testar e validar (56 testes passando, TypeScript sem erros)
+
+## IMPLEMENTAÇÃO — Agendamento Público via Link Web
+
+### Bloco 1 — Schema + APIs públicas
+- [x] Adicionar campo manageToken na tabela appointments
+- [x] Rodar pnpm db:push
+- [x] Criar publicRouter (Express REST, não tRPC)
+- [x] Criar GET /api/public/booking/:slug (dados do establishment)
+- [x] Criar GET /api/public/availability (horários disponíveis)
+- [x] Criar POST /api/public/appointments (criar agendamento)
+
+### Bloco 2 — Cancelamento, reagendamento e histórico
+- [x] Criar POST /api/public/appointments/:token/cancel
+- [x] Criar POST /api/public/appointments/:token/reschedule
+- [x] Criar GET /api/public/appointments/history (por telefone)
+
+### Bloco 3 — PublicBookingPage
+- [x] Criar página /agendar/:slug
+- [x] Componente ServiceSelector
+- [x] Componente ProfessionalSelector
+- [ ] Componente QuickSlots (melhores horários hoje/amanhã)
+- [x] Componente BookingCalendar
+- [x] Componente TimeSlots
+- [x] Componente CustomerForm
+- [x] Componente BookingSummary
+- [x] Componente BookingSuccess
+
+### Bloco 4 — Telas de gerenciamento
+- [x] Criar página /meu-agendamento/:token (PublicAppointmentManage)
+- [x] Funcionalidade cancelar agendamento
+- [x] Funcionalidade reagendar
+- [ ] Funcionalidade agendar novamente (sugere serviço anterior)
+
+### Bloco 5 — Notificações
+- [ ] Criar NotificationService
+- [ ] Notificação appointment.created (confirmação)
+- [ ] Notificação appointment.cancelled
+- [ ] Notificação appointment.rescheduled
+- [ ] Lembrete 24h antes
+- [ ] Lembrete 1h antes
+
+### Bloco 6 — WhatsApp simplificado
+- [ ] Simplificar chatbot para responder apenas com link de agendamento
+
+### Bloco 7 — Testes
+- [x] Testes APIs públicas (17 testes passando — availability, create, cancel, reschedule, history, validações)
+- [ ] Testes de notificações
+- [ ] Testes de isolamento multi-tenant
+
+### Bloco 8 — UX final
+- [ ] Mobile first responsivo
+- [ ] Formato Brasil (DD/MM/AAAA, HH:mm, R$)
+- [ ] Tempo máximo de agendamento: 30 segundos
+- [ ] Validação final e checkpoint

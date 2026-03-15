@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, name, slug, isActive FROM establishments WHERE deletedAt IS NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user mCNPhtzAvYTCiZQ.6d7e77383504 --database DiVfGDBrHmiP7YMc8Wh9rB --execute SELECT id, name, slug, isActive FROM establishments WHERE deletedAt IS NULL;",
+  "rows": [
+    {
+      "id": "150001",
+      "name": "SALAO 01",
+      "slug": "salao-teste",
+      "isActive": "1"
+    },
+    {
+      "id": "180001",
+      "name": "SALAO 01",
+      "slug": "salao-pica-dura",
+      "isActive": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tslug\tisActive\n150001\tSALAO 01\tsalao-teste\t1\n180001\tSALAO 01\tsalao-pica-dura\t1\n",
+  "stderr": "",
+  "execution_time_ms": 358
+}

@@ -137,6 +137,7 @@ export async function createAppointment(data: {
   notes?: string | null;
   source?: string;
   createdBy?: number | null;
+  manageToken?: string | null;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -154,10 +155,68 @@ export async function createAppointment(data: {
     notes: data.notes ?? null,
     source: data.source ?? "manual",
     createdBy: data.createdBy ?? null,
+    manageToken: data.manageToken ?? null,
   });
 
   const insertId = result[0].insertId;
   return getAppointmentById(insertId, data.establishmentId);
+}
+
+/**
+ * Busca um appointment pelo manageToken (para acesso público sem login).
+ */
+export async function getAppointmentByManageToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(appointments)
+    .where(eq(appointments.manageToken, token))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+/**
+ * Lista appointments de um customer por telefone normalizado (para acesso público).
+ */
+export async function getAppointmentsByCustomerPhone(
+  establishmentId: number,
+  normalizedPhone: string
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Import customers table inline to avoid circular deps
+  const { customers } = await import("../drizzle/schema");
+  
+  // First find the customer
+  const customerResult = await db
+    .select({ id: customers.id })
+    .from(customers)
+    .where(
+      and(
+        eq(customers.establishmentId, establishmentId),
+        eq(customers.normalizedPhone, normalizedPhone),
+        eq(customers.isActive, true)
+      )
+    )
+    .limit(1);
+
+  if (customerResult.length === 0) return [];
+
+  return db
+    .select()
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.establishmentId, establishmentId),
+        eq(appointments.customerId, customerResult[0].id),
+        inArray(appointments.status, ["pending", "confirmed"])
+      )
+    )
+    .orderBy(asc(appointments.startDatetime));
 }
 
 /**

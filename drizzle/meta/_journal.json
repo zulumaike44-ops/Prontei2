@@ -71,6 +71,13 @@
       "when": 1773520360362,
       "tag": "0009_awesome_boomer",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1773551576708,
+      "tag": "0010_glossy_falcon",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,8 @@ import Agenda from "./pages/Agenda";
 import WhatsAppSettings from "./pages/WhatsAppSettings";
 import WhatsAppConversations from "./pages/WhatsAppConversations";
 import WhatsAppConversationDetail from "./pages/WhatsAppConversationDetail";
+import PublicBooking from "./pages/PublicBooking";
+import PublicAppointmentManage from "./pages/PublicAppointmentManage";
 
 function Router() {
   return (
@@ -36,6 +38,8 @@ function Router() {
       <Route path="/dashboard/whatsapp" component={WhatsAppSettings} />
       <Route path="/dashboard/whatsapp/conversations" component={WhatsAppConversations} />
       <Route path="/dashboard/whatsapp/conversations/:id" component={WhatsAppConversationDetail} />
+      <Route path="/agendar/:slug" component={PublicBooking} />
+      <Route path="/agendamento/:token" component={PublicAppointmentManage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
