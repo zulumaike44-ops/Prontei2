@@ -73,15 +73,16 @@ export interface CreateAppointmentInput {
 
 export interface CreateAppointmentResult {
   success: boolean;
-  appointmentId: number;
-  manageToken: string;
-  summary: {
-    serviceName: string;
+  appointment: {
+    id: number;
+    manageToken: string;
     professionalName: string;
+    serviceName: string;
     date: string;
     time: string;
+    durationMinutes: number;
     price: string;
-    duration: string;
+    status: string;
     establishmentName: string;
     establishmentPhone: string | null;
   };
@@ -218,15 +219,16 @@ export async function createPublicAppointment(
 
   return {
     success: true,
-    appointmentId: appointment.id,
-    manageToken,
-    summary: {
-      serviceName: service.name,
+    appointment: {
+      id: appointment.id,
+      manageToken,
       professionalName: professional.name,
-      date: formatDateBR(date),
+      serviceName: service.name,
+      date,
       time,
+      durationMinutes,
       price: priceBR,
-      duration: `${durationMinutes} min`,
+      status: "confirmed",
       establishmentName: establishment.name,
       establishmentPhone: establishment.phone,
     },

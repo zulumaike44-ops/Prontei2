@@ -1,0 +1,29 @@
+BUG ENCONTRADO:
+Erro: "Cannot read properties of undefined (reading 'serviceName')"
+Local: PublicBooking.tsx, linha 371: appt.serviceName
+
+CAUSA RAIZ:
+A API POST /api/public/appointments retorna a estrutura de CreateAppointmentResult:
+{
+  success: true,
+  appointmentId: number,
+  manageToken: string,
+  summary: { serviceName, professionalName, date, time, price, duration, establishmentName, establishmentPhone }
+}
+
+Mas o frontend espera a estrutura BookingResult:
+{
+  success: boolean,
+  appointment: { id, manageToken, professionalName, serviceName, date, time, durationMinutes, price, status, establishmentName, establishmentPhone }
+}
+
+O frontend faz: bookingResult.appointment.serviceName
+Mas a API retorna: result.summary.serviceName (e result.appointmentId, result.manageToken)
+
+NÃO TEM campo "appointment" na resposta. O "appointment" é undefined, e acessar .serviceName nele causa o crash.
+
+SOLUÇÃO:
+Opção A: Mudar o frontend para usar a estrutura real da API (summary)
+Opção B: Mudar a API para retornar a estrutura que o frontend espera (appointment)
+
+Vou com Opção B - mudar a API para retornar { success, appointment: {...} } que é o que o frontend espera.

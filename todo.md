@@ -513,3 +513,8 @@
 - [x] Criar página MyAppointments.tsx (busca por telefone, lista de agendamentos)
 - [x] Registrar rota /meus-agendamentos no App.tsx
 - [x] Testar e salvar checkpoint
+
+## Bug — Erro de runtime no site publicado
+- [x] Investigar crash "An unexpected error occurred" no prontei.manus.space
+- [x] Corrigir o bug (API retornava {summary} mas frontend esperava {appointment})
+- [ ] Testar e salvar checkpoint

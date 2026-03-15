@@ -433,12 +433,13 @@ describe("publicAppointmentService", () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.appointmentId).toBe(1001);
-      expect(result.manageToken).toBeDefined();
-      expect(result.summary.serviceName).toBe("Corte Feminino");
-      expect(result.summary.professionalName).toBe("Maria Cabeleireira");
-      expect(result.summary.date).toBe("20/04/2026");
-      expect(result.summary.time).toBe("09:00");
+      expect(result.appointment.id).toBe(1001);
+      expect(result.appointment.manageToken).toBeDefined();
+      expect(result.appointment.serviceName).toBe("Corte Feminino");
+      expect(result.appointment.professionalName).toBe("Maria Cabeleireira");
+      expect(result.appointment.date).toBe("2026-04-20");
+      expect(result.appointment.time).toBe("09:00");
+      expect(result.appointment.status).toBe("confirmed");
     });
 
     it("rejeita agendamento quando há conflito de horário", async () => {
