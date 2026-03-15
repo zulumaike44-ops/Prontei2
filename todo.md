@@ -535,3 +535,12 @@
 - [x] Registrar rota /reagendar/:token no App.tsx
 - [x] Adicionar link de reagendamento na página de gerenciamento (PublicAppointmentManage)
 - [x] Testar fluxo completo e salvar checkpoint
+
+## Bug — Sistema não reconhece cliente e não busca agendamentos automaticamente
+- [x] Investigar fluxo de criação de agendamento e identificação de cliente pelo telefone
+- [x] Criar endpoint GET /api/public/customer/lookup (busca por telefone + slug)
+- [x] Implementar auto-preenchimento do nome quando telefone já cadastrado (debounce 600ms)
+- [x] Implementar busca automática de agendamentos ativos do cliente após identificação
+- [x] Permitir que o cliente veja e gerencie seus agendamentos sem precisar do token
+- [x] Indicador visual "Cliente reconhecido" no campo de telefone
+- [ ] Testar e salvar checkpoint

@@ -304,6 +304,81 @@ async function handleGetRebook(req: Request, res: Response) {
   }
 }
 
+/**
+ * GET /api/public/customer/lookup
+ * Query params: slug, phone
+ * Retorna dados do cliente + agendamentos ativos se o telefone já estiver cadastrado
+ */
+async function handleCustomerLookup(req: Request, res: Response) {
+  try {
+    const { slug, phone } = req.query;
+
+    if (!slug || !phone) {
+      return sendError(res, 400, "Parâmetros obrigatórios: slug, phone.");
+    }
+
+    const phoneStr = phone as string;
+    const digits = phoneStr.replace(/\D/g, "");
+    if (digits.length < 10) {
+      return res.json({ found: false, customer: null, appointments: [] });
+    }
+
+    const establishment = await getEstablishmentBySlug(slug as string);
+    if (!establishment) return sendError(res, 404, "Estabelecimento não encontrado.");
+
+    const normalizedPhoneValue = normalizePhonePublic(phoneStr);
+    const { getCustomerByNormalizedPhone } = await import("./db");
+    const customer = await getCustomerByNormalizedPhone(normalizedPhoneValue, establishment.id);
+
+    if (!customer) {
+      return res.json({ found: false, customer: null, appointments: [] });
+    }
+
+    // Buscar agendamentos ativos (pending/confirmed) futuros
+    const allAppointments = await getAppointmentsByCustomerPhone(
+      establishment.id,
+      normalizedPhoneValue
+    );
+
+    const now = new Date();
+    const activeAppointments = allAppointments.filter(
+      (a) => ["pending", "confirmed"].includes(a.status) && new Date(a.startDatetime) > now
+    );
+
+    // Enriquecer com nomes
+    const enriched = await Promise.all(
+      activeAppointments.map(async (appt) => {
+        const professional = await getProfessionalById(appt.professionalId, establishment.id);
+        const service = await getServiceById(appt.serviceId, establishment.id);
+        return {
+          id: appt.id,
+          date: appt.startDatetime,
+          endDate: appt.endDatetime,
+          durationMinutes: appt.durationMinutes,
+          price: appt.price,
+          status: appt.status,
+          professionalName: professional?.name ?? "N/A",
+          serviceName: service?.name ?? "N/A",
+          manageToken: appt.manageToken,
+        };
+      })
+    );
+
+    return res.json({
+      found: true,
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+      },
+      appointments: enriched,
+    });
+  } catch (error) {
+    console.error("[Public Customer Lookup] Error:", error);
+    return sendError(res, 500, "Erro interno do servidor.");
+  }
+}
+
 // ============================================================
 // REGISTER ROUTES
 // ============================================================
@@ -315,6 +390,7 @@ export function registerPublicRoutes(expressRouter: Router) {
   expressRouter.post("/api/public/appointments", handleCreateAppointment);
   expressRouter.get("/api/public/appointments/history", handleGetAppointmentHistory);
   expressRouter.get("/api/public/rebook", handleGetRebook);
+  expressRouter.get("/api/public/customer/lookup", handleCustomerLookup);
   expressRouter.get("/api/public/appointments/:token", handleGetAppointmentByToken);
   expressRouter.post("/api/public/appointments/:token/cancel", handleCancelAppointment);
   expressRouter.post("/api/public/appointments/:token/reschedule", handleRescheduleAppointment);

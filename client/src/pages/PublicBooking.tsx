@@ -563,6 +563,7 @@ export default function PublicBooking() {
               onChangePhone={setCustomerPhone}
               onChangeNotes={setNotes}
               primaryColor={primaryColor}
+              slug={slug}
             />
 
             <div className="flex gap-3">
