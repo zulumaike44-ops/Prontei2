@@ -507,4 +507,9 @@
 - [x] Mobile-first responsivo
 - [x] Formato Brasil (DD/MM/AAAA, HH:mm, R$)
 - [ ] Simplificar chatbot WhatsApp (responder apenas com link)
-- [ ] Checkpoint final salvo
+- [x] Checkpoint final salvo
+
+## Página /meus-agendamentos
+- [x] Criar página MyAppointments.tsx (busca por telefone, lista de agendamentos)
+- [x] Registrar rota /meus-agendamentos no App.tsx
+- [x] Testar e salvar checkpoint
