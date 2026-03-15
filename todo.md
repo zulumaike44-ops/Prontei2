@@ -543,4 +543,4 @@
 - [x] Implementar busca automática de agendamentos ativos do cliente após identificação
 - [x] Permitir que o cliente veja e gerencie seus agendamentos sem precisar do token
 - [x] Indicador visual "Cliente reconhecido" no campo de telefone
-- [ ] Testar e salvar checkpoint
+- [x] Testar e salvar checkpoint
