@@ -529,3 +529,9 @@
 - [x] Prompt de instalação PWA na tela de sucesso do agendamento
 - [x] Botão 'Ver meus agendamentos' na tela de sucesso
 - [x] Testar instalação PWA e salvar checkpoint
+
+## Página /reagendar/:token — Reagendamento pelo cliente
+- [x] Criar página RescheduleAppointment.tsx (busca agendamento, seleciona nova data/hora, confirma)
+- [x] Registrar rota /reagendar/:token no App.tsx
+- [x] Adicionar link de reagendamento na página de gerenciamento (PublicAppointmentManage)
+- [x] Testar fluxo completo e salvar checkpoint

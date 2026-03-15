@@ -20,6 +20,7 @@ import {
   AlertCircle,
   DollarSign,
   MessageSquare,
+  CalendarClock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -227,6 +228,12 @@ export default function PublicAppointmentManage() {
         {/* Actions */}
         {canCancel && !showCancelConfirm && (
           <div className="space-y-2">
+            <Link href={`/reagendar/${appointment.manageToken}`}>
+              <button className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2 shadow-md bg-amber-700">
+                <CalendarClock className="w-4 h-4" />
+                Reagendar
+              </button>
+            </Link>
             <Link href={`/agendar/${appointment.establishmentSlug}`}>
               <button className="w-full py-3 rounded-xl border border-border text-sm font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-2">
                 <CalendarPlus className="w-4 h-4" />
