@@ -441,3 +441,10 @@
 - [ ] Formato Brasil (DD/MM/AAAA, HH:mm, R$)
 - [ ] Tempo máximo de agendamento: 30 segundos
 - [ ] Validação final e checkpoint
+
+## Link de agendamento no painel
+- [x] Exibir link de agendamento no Dashboard (card com botão copiar, QR Code, abrir em nova aba)
+- [x] Exibir link de agendamento na tela de Configurações (com personalização do slug)
+- [x] Permitir personalizar o slug do establishment (com validação de unicidade no backend)
+- [x] Gerar QR Code do link de agendamento (via api.qrserver.com)
+- [x] Testar e validar (73 testes passando, TypeScript sem erros)

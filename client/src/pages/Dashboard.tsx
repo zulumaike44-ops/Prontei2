@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Calendar,
   Users,
@@ -13,14 +13,22 @@ import {
   CalendarPlus,
   UserRound,
   ArrowRight,
+  Link2,
+  Copy,
+  Check,
+  QrCode,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 export default function Dashboard() {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
+  const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
 
   const {
     data: establishment,
@@ -190,6 +198,80 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+
+        {/* Booking Link Card */}
+        {establishment?.slug && (
+          <div className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-xl border border-primary/20 p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+                  <Link2 className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-heading text-base font-semibold text-foreground">
+                    Link de agendamento
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Compartilhe com seus clientes para agendarem online
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="flex-1 sm:flex-none bg-background/80 border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground font-mono truncate max-w-xs">
+                  {window.location.origin}/agendar/{establishment.slug}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 border-primary/30 hover:bg-primary/10"
+                  onClick={() => {
+                    const url = `${window.location.origin}/agendar/${establishment.slug}`;
+                    navigator.clipboard.writeText(url);
+                    setCopied(true);
+                    toast.success("Link copiado!");
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                >
+                  {copied ? (
+                    <Check className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4 text-primary" />
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 border-primary/30 hover:bg-primary/10"
+                  onClick={() => setShowQr(!showQr)}
+                >
+                  <QrCode className="w-4 h-4 text-primary" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 border-primary/30 hover:bg-primary/10"
+                  onClick={() => {
+                    window.open(`/agendar/${establishment.slug}`, "_blank");
+                  }}
+                >
+                  <ExternalLink className="w-4 h-4 text-primary" />
+                </Button>
+              </div>
+            </div>
+            {showQr && (
+              <div className="mt-4 flex flex-col items-center gap-3 p-4 bg-white rounded-xl border border-border/30">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/agendar/${establishment.slug}`)}`}
+                  alt="QR Code do link de agendamento"
+                  className="w-48 h-48 rounded-lg"
+                />
+                <p className="text-xs text-muted-foreground text-center">
+                  Escaneie o QR Code para abrir a página de agendamento
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Optional: Customers card */}
         {summary && summary.activeCustomers > 0 && (

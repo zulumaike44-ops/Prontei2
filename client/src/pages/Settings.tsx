@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
-import { Loader2, Save, Building2 } from "lucide-react";
+import { Loader2, Save, Building2, Link2, Copy, Check, QrCode, ExternalLink, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Settings() {
@@ -30,6 +30,10 @@ export default function Settings() {
   });
 
   const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [editingSlug, setEditingSlug] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [description, setDescription] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -44,6 +48,7 @@ export default function Settings() {
   useEffect(() => {
     if (establishment) {
       setName(establishment.name || "");
+      setSlug(establishment.slug || "");
       setDescription(establishment.description || "");
       setPhone(establishment.phone || "");
       setEmail(establishment.email || "");
@@ -99,6 +104,134 @@ export default function Settings() {
           <p className="text-muted-foreground">
             Gerencie as informações do seu estabelecimento.
           </p>
+        </div>
+
+        {/* Booking Link Section */}
+        <div className="bg-card rounded-2xl border border-border/50 shadow-sm">
+          <div className="p-6 border-b border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Link2 className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="font-heading text-lg font-semibold">
+                  Link de agendamento
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Compartilhe este link para seus clientes agendarem online.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-5">
+            {/* Current Link */}
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Seu link</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-muted/50 border border-border/50 rounded-xl px-4 py-3 text-sm font-mono text-foreground truncate">
+                  {window.location.origin}/agendar/{slug || establishment?.slug}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 h-11 w-11 rounded-xl"
+                  onClick={() => {
+                    const url = `${window.location.origin}/agendar/${slug || establishment?.slug}`;
+                    navigator.clipboard.writeText(url);
+                    setCopied(true);
+                    toast.success("Link copiado!");
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                >
+                  {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 h-11 w-11 rounded-xl"
+                  onClick={() => setShowQr(!showQr)}
+                >
+                  <QrCode className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 h-11 w-11 rounded-xl"
+                  onClick={() => window.open(`/agendar/${slug || establishment?.slug}`, "_blank")}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* QR Code */}
+            {showQr && (
+              <div className="flex flex-col items-center gap-3 p-6 bg-white rounded-xl border border-border/30">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/agendar/${slug || establishment?.slug}`)}`}
+                  alt="QR Code"
+                  className="w-48 h-48 rounded-lg"
+                />
+                <p className="text-xs text-muted-foreground">Escaneie para abrir a página de agendamento</p>
+              </div>
+            )}
+
+            {/* Customize Slug */}
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Personalizar link</Label>
+              {editingSlug ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">.../agendar/</span>
+                  <Input
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/--+/g, "-"))}
+                    className="h-11 rounded-xl font-mono"
+                    placeholder="meu-salao"
+                  />
+                  <Button
+                    size="sm"
+                    className="bg-primary hover:bg-terracotta-dark text-primary-foreground rounded-xl h-11 px-4"
+                    disabled={updateMutation.isPending || !slug.trim() || slug.length < 3}
+                    onClick={() => {
+                      updateMutation.mutate({ slug: slug.trim() }, {
+                        onSuccess: () => {
+                          setEditingSlug(false);
+                          toast.success("Link atualizado!");
+                        },
+                      });
+                    }}
+                  >
+                    {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl h-11"
+                    onClick={() => {
+                      setSlug(establishment?.slug || "");
+                      setEditingSlug(false);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  onClick={() => setEditingSlug(true)}
+                >
+                  <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                  Personalizar
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                Use letras minúsculas, números e hífens. Mínimo 3 caracteres.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Profile Section */}

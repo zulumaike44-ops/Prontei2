@@ -44,6 +44,7 @@ import {
   deactivateCustomer,
   countCustomersByEstablishment,
   getEstablishmentById,
+  getEstablishmentBySlug,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import {
@@ -159,6 +160,7 @@ export const appRouter = router({
       .input(
         z.object({
           name: z.string().min(2).max(200).optional(),
+          slug: z.string().min(3).max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug deve conter apenas letras minúsculas, números e hífens").optional(),
           description: z.string().max(500).optional(),
           phone: z.string().max(20).optional(),
           email: z.string().email().max(255).optional(),
@@ -179,6 +181,17 @@ export const appRouter = router({
             code: "NOT_FOUND",
             message: "Estabelecimento não encontrado.",
           });
+        }
+
+        // Check slug uniqueness if changing slug
+        if (input.slug && input.slug !== establishment.slug) {
+          const existing = await getEstablishmentBySlug(input.slug);
+          if (existing) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Este link já está em uso. Escolha outro.",
+            });
+          }
         }
 
         return updateEstablishment(establishment.id, ctx.user.id, input);
