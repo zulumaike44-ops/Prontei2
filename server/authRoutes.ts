@@ -117,9 +117,10 @@ export function registerAuthRoutes(app: Express) {
           email: normalizedEmail,
         },
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Auth] Register failed:", error);
-      res.status(500).json({ error: "Erro ao criar conta. Tente novamente." });
+      const detail = error?.message || String(error);
+      res.status(500).json({ error: "Erro ao criar conta: " + detail });
     }
   });
 
