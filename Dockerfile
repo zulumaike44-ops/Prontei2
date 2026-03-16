@@ -34,12 +34,11 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=base /app/dist ./dist
 COPY --from=base /app/drizzle ./drizzle
 
+# Set production environment
+ENV NODE_ENV=production
+
 # Expose port
 EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
 # Start the application
 CMD ["node", "dist/index.js"]
