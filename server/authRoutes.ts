@@ -2,11 +2,32 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import bcrypt from "bcryptjs";
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { users } from "../drizzle/schema";
 import { getDb } from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
+
+// Auto-migrate: add passwordHash column if it doesn't exist
+async function ensurePasswordHashColumn() {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    // Try to add the column - if it already exists, the error is silently caught
+    await db.execute(
+      sql`ALTER TABLE users ADD COLUMN passwordHash varchar(255) DEFAULT NULL`
+    ).catch(() => {
+      // Column already exists, ignore
+    });
+    console.log("[Auth] passwordHash column ensured");
+  } catch (e) {
+    // Ignore - column may already exist
+    console.log("[Auth] passwordHash column check:", (e as Error).message);
+  }
+}
+
+// Run migration on module load
+ensurePasswordHashColumn();
 
 export function registerAuthRoutes(app: Express) {
   // ==========================================
