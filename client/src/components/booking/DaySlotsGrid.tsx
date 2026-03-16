@@ -3,9 +3,10 @@
  *
  * Exibe chips de horário em grid responsivo.
  * Busca dados da API quando date/professionalId/serviceId mudam.
+ * Inclui skeleton loading sofisticado e animações staggered.
  */
 
-import { Clock, AlertCircle } from "lucide-react";
+import { Clock, AlertCircle, CalendarX } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface DaySlotsGridProps {
@@ -86,13 +87,17 @@ export function DaySlotsGrid({
 
   if (loading) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3 animate-fade-in-up">
         <p className="text-sm font-medium text-muted-foreground">
           Carregando horários para {dateLabel}...
         </p>
         <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />
+            <div
+              key={i}
+              className="h-11 rounded-lg skeleton-shine"
+              style={{ animationDelay: `${i * 0.05}s` }}
+            />
           ))}
         </div>
       </div>
@@ -101,9 +106,9 @@ export function DaySlotsGrid({
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 text-sm text-destructive p-3 rounded-lg bg-destructive/10">
-        <AlertCircle className="w-4 h-4 flex-shrink-0" />
-        <span>{error}</span>
+      <div className="flex items-center gap-2.5 text-sm text-destructive p-4 rounded-xl bg-destructive/10 animate-fade-in-scale">
+        <AlertCircle className="w-5 h-5 flex-shrink-0" />
+        <span className="font-medium">{error}</span>
       </div>
     );
   }
@@ -112,45 +117,47 @@ export function DaySlotsGrid({
 
   if (availableSlots.length === 0) {
     return (
-      <div className="text-center py-6 text-muted-foreground text-sm">
-        <Clock className="w-8 h-8 mx-auto mb-2 opacity-40" />
-        <p>Nenhum horário disponível para {dateLabel}.</p>
-        <p className="text-xs mt-1">Tente outra data ou profissional.</p>
+      <div className="text-center py-8 text-muted-foreground text-sm animate-fade-in-up">
+        <CalendarX className="w-10 h-10 mx-auto mb-3 opacity-30" />
+        <p className="font-medium">Nenhum horário disponível para {dateLabel}</p>
+        <p className="text-xs mt-1.5">Tente outra data ou profissional.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3 animate-fade-in-up">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-foreground">
+        <span className="text-sm font-semibold text-foreground">
           Horários em {dateLabel}
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-medium">
           {availableSlots.length} disponíveis
         </span>
       </div>
 
       <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-        {availableSlots.map((slot) => {
+        {availableSlots.map((slot, index) => {
           const isSelected = slot.time === selectedTime;
           return (
             <button
               key={slot.time}
               onClick={() => onSelectTime(slot.time)}
-              className={`py-2.5 px-2 rounded-lg text-sm font-medium border transition-all duration-150 ${
+              className={`py-2.5 px-2 rounded-lg text-sm font-semibold border transition-all duration-150 tap-feedback animate-fade-in-up ${
                 isSelected
-                  ? "text-white shadow-sm"
-                  : "border-border bg-card hover:border-muted-foreground/30 text-foreground"
+                  ? "text-white shadow-md"
+                  : "border-border bg-card hover:border-muted-foreground/30 text-foreground hover:shadow-sm"
               }`}
-              style={
-                isSelected
+              style={{
+                animationDelay: `${index * 0.03}s`,
+                ...(isSelected
                   ? {
                       backgroundColor: primaryColor,
                       borderColor: primaryColor,
+                      boxShadow: `0 4px 12px -2px ${primaryColor}40`,
                     }
-                  : undefined
-              }
+                  : {}),
+              }}
             >
               {slot.time}
             </button>

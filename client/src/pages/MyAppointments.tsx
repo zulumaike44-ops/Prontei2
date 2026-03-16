@@ -140,9 +140,16 @@ export default function MyAppointments() {
   const initialSlug = urlParams.get("slug") || "";
 
   const [slug, setSlug] = useState(initialSlug);
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(() => {
+    if (typeof window !== "undefined") {
+      const savedPhone = localStorage.getItem("prontei_customer_phone");
+      return savedPhone ? applyPhoneMask(savedPhone) : "";
+    }
+    return "";
+  });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<HistoryResponse | null>(null);
+  const [rebookSuggestion, setRebookSuggestion] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
 
@@ -163,19 +170,31 @@ export default function MyAppointments() {
         phone: phoneDigits,
       });
 
-      const response = await fetch(
-        `/api/public/appointments/history?${params.toString()}`
-      );
+      // Buscar histórico e sugestão de rebook em paralelo
+      const [historyRes, rebookRes] = await Promise.all([
+        fetch(`/api/public/appointments/history?${params.toString()}`),
+        fetch(`/api/public/rebook?${params.toString()}`)
+      ]);
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => null);
+      if (!historyRes.ok) {
+        const errData = await historyRes.json().catch(() => null);
         throw new Error(
           errData?.error || "Não foi possível buscar os agendamentos."
         );
       }
 
-      const data: HistoryResponse = await response.json();
+      const data: HistoryResponse = await historyRes.json();
       setResult(data);
+      
+      // Save phone for future use
+      if (typeof window !== "undefined") {
+        localStorage.setItem("prontei_customer_phone", phoneDigits);
+      }
+      
+      if (rebookRes.ok) {
+        const rebookData = await rebookRes.json();
+        setRebookSuggestion(rebookData.suggestion);
+      }
     } catch (err: any) {
       setError(err.message || "Erro ao buscar agendamentos.");
     } finally {
@@ -290,6 +309,33 @@ export default function MyAppointments() {
                 {result.establishment.name}
               </span>
             </div>
+            
+            {/* Rebook Suggestion Card */}
+            {rebookSuggestion && (
+              <div className="rounded-xl border-2 border-amber-500/30 bg-amber-50/50 p-4 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">
+                  AGENDAR NOVAMENTE
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <CalendarPlus className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-foreground mb-1">
+                      Gostaria de agendar novamente?
+                    </h3>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Seu último agendamento foi <span className="font-medium text-foreground">{rebookSuggestion.serviceName}</span> com <span className="font-medium text-foreground">{rebookSuggestion.professionalName}</span>.
+                    </p>
+                    <Link href={`/agendar/${result.establishment.slug}?serviceId=${rebookSuggestion.serviceId}&professionalId=${rebookSuggestion.professionalId}`}>
+                      <button className="w-full py-2 rounded-lg text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 transition-colors shadow-sm">
+                        Agendar em 2 cliques
+                      </button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Empty state */}
             {result.appointments.length === 0 && (

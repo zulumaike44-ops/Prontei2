@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useSearch } from "wouter";
 import { Loader2, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -142,6 +142,11 @@ function StepIndicator({
 export default function PublicBooking() {
   const [, params] = useRoute("/agendar/:slug");
   const slug = params?.slug ?? "";
+  
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
+  const initialServiceId = urlParams.get("serviceId") ? parseInt(urlParams.get("serviceId")!) : null;
+  const initialProfessionalId = urlParams.get("professionalId") ? parseInt(urlParams.get("professionalId")!) : null;
 
   // Data
   const [establishment, setEstablishment] = useState<Establishment | null>(null);
@@ -152,8 +157,8 @@ export default function PublicBooking() {
 
   // Steps
   const [step, setStep] = useState(1);
-  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
-  const [selectedProfessionalId, setSelectedProfessionalId] = useState<number | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(initialServiceId);
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState<number | null>(initialProfessionalId);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
@@ -162,8 +167,18 @@ export default function PublicBooking() {
   const [effectivePrice, setEffectivePrice] = useState("0");
 
   // Customer form
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerName, setCustomerName] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("prontei_customer_name") || "";
+    }
+    return "";
+  });
+  const [customerPhone, setCustomerPhone] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("prontei_customer_phone") || "";
+    }
+    return "";
+  });
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -196,6 +211,13 @@ export default function PublicBooking() {
         );
         setServices(data.services);
         setLoading(false);
+        
+        // Auto-advance steps if query params are present
+        if (initialServiceId && initialProfessionalId) {
+          setStep(3); // Go straight to Date/Time selection
+        } else if (initialServiceId) {
+          setStep(2); // Go to Professional selection
+        }
       })
       .catch((err) => {
         setError(err.message);
@@ -290,6 +312,13 @@ export default function PublicBooking() {
 
       const data: BookingResult = await r.json();
       setBookingResult(data);
+      
+      // Save customer data for future bookings (auto-fill)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("prontei_customer_name", customerName.trim());
+        localStorage.setItem("prontei_customer_phone", customerPhone.trim());
+      }
+      
       toast.success("Agendamento confirmado!");
     } catch (err: any) {
       toast.error(err.message || "Erro ao criar agendamento.");
@@ -436,13 +465,25 @@ export default function PublicBooking() {
               }}
               primaryColor={primaryColor}
             />
+            
+            {/* QuickSlots appear immediately after selecting service for fast booking */}
+            {selectedServiceId && (
+              <QuickSlotsSection
+                slug={slug}
+                serviceId={selectedServiceId}
+                professionalId={null} // Any professional
+                onSelectSlot={handleQuickSlot}
+                primaryColor={primaryColor}
+              />
+            )}
+            
             {selectedServiceId && (
               <button
                 onClick={() => setStep(2)}
                 className="w-full py-3 rounded-xl text-sm font-bold text-white shadow-md hover:shadow-lg transition-all"
                 style={{ backgroundColor: primaryColor }}
               >
-                Continuar <ChevronRight className="w-4 h-4 inline ml-1" />
+                Escolher Profissional ou Data <ChevronRight className="w-4 h-4 inline ml-1" />
               </button>
             )}
           </div>

@@ -22,6 +22,7 @@ import PublicBooking from "./pages/PublicBooking";
 import PublicAppointmentManage from "./pages/PublicAppointmentManage";
 import MyAppointments from "./pages/MyAppointments";
 import RescheduleAppointment from "./pages/RescheduleAppointment";
+import Documentation from "./pages/docs/Documentation";
 
 function Router() {
   return (
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/agendamento/:token" component={PublicAppointmentManage} />
       <Route path="/meus-agendamentos" component={MyAppointments} />
       <Route path="/reagendar/:token" component={RescheduleAppointment} />
+      <Route path="/docs" component={Documentation} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

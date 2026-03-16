@@ -5,10 +5,12 @@
  * - Verde: muitos horários disponíveis (good)
  * - Amarelo: poucos horários (limited)
  * - Cinza: sem horários (full) ou dia passado
- * - Azul: dia selecionado
+ * - Azul/Primary: dia selecionado
+ *
+ * Animações suaves, tap feedback, skeleton loading.
  */
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 
 interface DayAvailability {
@@ -58,6 +60,8 @@ export function BookingCalendar({
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, DayAvailability>>({});
   const [loadingDays, setLoadingDays] = useState<Set<string>>(new Set());
+  const [transitioning, setTransitioning] = useState(false);
+  const [transitionDir, setTransitionDir] = useState<"left" | "right">("right");
 
   // Generate calendar days for the current month view
   const calendarDays = useMemo(() => {
@@ -91,11 +95,9 @@ export function BookingCalendar({
 
     if (futureDays.length === 0) return;
 
-    // Fetch availability for each day (limit concurrent requests)
     let cancelled = false;
 
     async function fetchBatch() {
-      // Only fetch first 14 days to avoid too many requests
       const batch = futureDays.slice(0, 14);
       setLoadingDays((prev) => {
         const next = new Set(prev);
@@ -145,21 +147,31 @@ export function BookingCalendar({
   }, [calendarDays, slug, professionalId, serviceId]);
 
   function prevMonth() {
-    if (viewMonth === 0) {
-      setViewMonth(11);
-      setViewYear(viewYear - 1);
-    } else {
-      setViewMonth(viewMonth - 1);
-    }
+    setTransitionDir("left");
+    setTransitioning(true);
+    setTimeout(() => {
+      if (viewMonth === 0) {
+        setViewMonth(11);
+        setViewYear(viewYear - 1);
+      } else {
+        setViewMonth(viewMonth - 1);
+      }
+      setTransitioning(false);
+    }, 150);
   }
 
   function nextMonth() {
-    if (viewMonth === 11) {
-      setViewMonth(0);
-      setViewYear(viewYear + 1);
-    } else {
-      setViewMonth(viewMonth + 1);
-    }
+    setTransitionDir("right");
+    setTransitioning(true);
+    setTimeout(() => {
+      if (viewMonth === 11) {
+        setViewMonth(0);
+        setViewYear(viewYear + 1);
+      } else {
+        setViewMonth(viewMonth + 1);
+      }
+      setTransitioning(false);
+    }, 150);
   }
 
   const canGoPrev =
@@ -177,9 +189,12 @@ export function BookingCalendar({
       return {
         bg: primaryColor,
         text: "#fff",
-        ring: `2px solid ${primaryColor}`,
+        ring: "none",
         cursor: "pointer" as const,
         dot: null,
+        shadow: `0 4px 12px -2px ${primaryColor}50`,
+        scale: "scale-105",
+        fontWeight: "700",
       };
     }
 
@@ -190,7 +205,8 @@ export function BookingCalendar({
         ring: "none",
         cursor: "default" as const,
         dot: null,
-        opacity: 0.4,
+        opacity: 0.35,
+        fontWeight: "400",
       };
     }
 
@@ -198,9 +214,10 @@ export function BookingCalendar({
       return {
         bg: "transparent",
         text: "var(--foreground)",
-        ring: isToday ? `2px solid ${primaryColor}40` : "none",
+        ring: isToday ? `2px solid ${primaryColor}50` : "none",
         cursor: "pointer" as const,
         dot: "var(--muted-foreground)",
+        fontWeight: isToday ? "700" : "500",
       };
     }
 
@@ -208,9 +225,10 @@ export function BookingCalendar({
       return {
         bg: "transparent",
         text: "var(--foreground)",
-        ring: isToday ? `2px solid ${primaryColor}40` : "none",
+        ring: isToday ? `2px solid ${primaryColor}50` : "none",
         cursor: "pointer" as const,
         dot: null,
+        fontWeight: isToday ? "700" : "500",
       };
     }
 
@@ -222,56 +240,66 @@ export function BookingCalendar({
         : "#94a3b8";
 
     return {
-      bg: "transparent",
+      bg: avail.status === "good" ? `${primaryColor}06` : "transparent",
       text: avail.status === "full" ? "var(--muted-foreground)" : "var(--foreground)",
-      ring: isToday ? `2px solid ${primaryColor}40` : "none",
+      ring: isToday ? `2px solid ${primaryColor}50` : "none",
       cursor: avail.status === "full" ? ("default" as const) : ("pointer" as const),
       dot: dotColor,
-      opacity: avail.status === "full" ? 0.5 : 1,
+      opacity: avail.status === "full" ? 0.45 : 1,
+      fontWeight: isToday ? "700" : "500",
     };
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 animate-fade-in-up">
       <div className="flex items-center gap-2 mb-1">
+        <CalendarDays className="w-4 h-4" style={{ color: primaryColor }} />
         <span className="text-base font-semibold text-foreground">Escolha a data</span>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
         {/* Month navigation */}
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={prevMonth}
             disabled={!canGoPrev}
-            className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-default transition-colors"
+            className="p-2 rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-default transition-all tap-feedback"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-sm font-semibold text-foreground">
+          <span className="text-sm font-bold text-foreground tracking-tight">
             {MONTH_LABELS[viewMonth]} {viewYear}
           </span>
           <button
             onClick={nextMonth}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+            className="p-2 rounded-lg hover:bg-muted transition-all tap-feedback"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
+        <div className="grid grid-cols-7 gap-1 mb-2">
           {WEEKDAY_LABELS.map((label) => (
             <div
               key={label}
-              className="text-center text-[10px] font-medium text-muted-foreground py-1"
+              className="text-center text-[10px] font-semibold text-muted-foreground py-1 uppercase tracking-wider"
             >
               {label}
             </div>
           ))}
         </div>
 
-        {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-1">
+        {/* Calendar grid with transition */}
+        <div
+          className={`grid grid-cols-7 gap-1 transition-all duration-150 ${
+            transitioning
+              ? transitionDir === "right"
+                ? "opacity-0 translate-x-4"
+                : "opacity-0 -translate-x-4"
+              : "opacity-100 translate-x-0"
+          }`}
+        >
           {calendarDays.map((dateStr, i) => {
             if (!dateStr) {
               return <div key={`pad-${i}`} className="aspect-square" />;
@@ -282,6 +310,7 @@ export function BookingCalendar({
             const past = isPast(dateStr);
             const avail = availabilityMap[dateStr];
             const isFull = avail?.status === "full";
+            const isLoading = loadingDays.has(dateStr);
 
             return (
               <button
@@ -290,19 +319,26 @@ export function BookingCalendar({
                   if (!past && !isFull) onSelectDate(dateStr);
                 }}
                 disabled={past || isFull}
-                className="aspect-square flex flex-col items-center justify-center rounded-lg text-sm relative transition-all"
+                className={`aspect-square flex flex-col items-center justify-center rounded-lg text-sm relative transition-all duration-150 tap-feedback ${
+                  (style as any).scale || ""
+                }`}
                 style={{
                   backgroundColor: style.bg,
                   color: style.text,
                   border: style.ring,
                   cursor: style.cursor,
                   opacity: (style as any).opacity ?? 1,
+                  boxShadow: (style as any).shadow ?? "none",
+                  fontWeight: (style as any).fontWeight ?? "500",
                 }}
               >
                 {dayNum}
+                {/* Availability dot */}
                 {style.dot && (
                   <span
-                    className="absolute bottom-1 w-1.5 h-1.5 rounded-full"
+                    className={`absolute bottom-1 w-1.5 h-1.5 rounded-full transition-all ${
+                      isLoading ? "animate-pulse" : ""
+                    }`}
                     style={{ backgroundColor: style.dot }}
                   />
                 )}
@@ -312,14 +348,14 @@ export function BookingCalendar({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-4 mt-3 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-5 mt-4 pt-3 border-t border-border text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-green-500" /> Disponível
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-yellow-500" /> Poucos
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-slate-400" /> Lotado
           </span>
         </div>
