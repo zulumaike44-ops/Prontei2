@@ -23,11 +23,15 @@ import PublicAppointmentManage from "./pages/PublicAppointmentManage";
 import MyAppointments from "./pages/MyAppointments";
 import RescheduleAppointment from "./pages/RescheduleAppointment";
 import Documentation from "./pages/docs/Documentation";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={Login} />
+      <Route path="/cadastro" component={Register} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/settings" component={Settings} />

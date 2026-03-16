@@ -4,6 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerAuthRoutes } from "../authRoutes";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic } from "./vite";
@@ -38,6 +39,8 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // Local auth routes (register + login)
+  registerAuthRoutes(app);
   // WhatsApp webhook (public — no auth required)
   app.get("/api/whatsapp/webhook", handleWebhookVerification);
   app.post("/api/whatsapp/webhook", handleWebhookMessage);

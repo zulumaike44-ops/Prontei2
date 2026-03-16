@@ -1,6 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import {
   Calendar,
@@ -38,9 +37,7 @@ export default function Home() {
             </span>
           </div>
           <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
+            onClick={() => setLocation("/login")}
             className="bg-primary hover:bg-terracotta-dark text-primary-foreground"
           >
             Entrar
@@ -66,9 +63,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
-              onClick={() => {
-                window.location.href = getLoginUrl();
-              }}
+              onClick={() => setLocation("/cadastro")}
               className="bg-primary hover:bg-terracotta-dark text-primary-foreground text-lg px-8 py-6 rounded-xl shadow-lg hover:shadow-xl transition-all"
             >
               Começar gratuitamente
@@ -163,9 +158,7 @@ export default function Home() {
           </p>
           <Button
             size="lg"
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
+            onClick={() => setLocation("/cadastro")}
             className="bg-primary hover:bg-terracotta-dark text-primary-foreground text-lg px-8 py-6 rounded-xl shadow-lg"
           >
             Criar minha conta grátis
