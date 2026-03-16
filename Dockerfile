@@ -40,5 +40,9 @@ ENV NODE_ENV=production
 # Expose port
 EXPOSE 3000
 
-# Start the application
-CMD ["node", "dist/index.js"]
+# Copy start script
+COPY start.sh ./start.sh
+RUN chmod +x ./start.sh
+
+# Start the application (run migrations first, then server)
+CMD ["sh", "./start.sh"]
