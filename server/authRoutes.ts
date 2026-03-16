@@ -7,27 +7,53 @@ import { users } from "../drizzle/schema";
 import { getDb } from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
+import mysql from "mysql2/promise";
 
-// Auto-migrate: add passwordHash column if it doesn't exist
-async function ensurePasswordHashColumn() {
+let migrationDone = false;
+
+async function ensureMigration() {
+  if (migrationDone) return;
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.log("[Auth] No DATABASE_URL, skipping migration");
+    migrationDone = true;
+    return;
+  }
   try {
-    const db = await getDb();
-    if (!db) return;
-    // Try to add the column - if it already exists, the error is silently caught
-    await db.execute(
-      sql`ALTER TABLE users ADD COLUMN passwordHash varchar(255) DEFAULT NULL`
-    ).catch(() => {
-      // Column already exists, ignore
-    });
-    console.log("[Auth] passwordHash column ensured");
-  } catch (e) {
-    // Ignore - column may already exist
-    console.log("[Auth] passwordHash column check:", (e as Error).message);
+    console.log("[Auth] Running passwordHash migration...");
+    const conn = await mysql.createConnection(dbUrl);
+    
+    // Check if column exists first
+    const [rows] = await conn.execute(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'passwordHash' AND TABLE_SCHEMA = DATABASE()`
+    );
+    
+    if (Array.isArray(rows) && rows.length === 0) {
+      await conn.execute(`ALTER TABLE users ADD COLUMN passwordHash varchar(255) DEFAULT NULL`);
+      console.log("[Auth] ✅ passwordHash column created");
+    } else {
+      console.log("[Auth] ⏭️  passwordHash column already exists");
+    }
+    
+    // Also check loginMethod column
+    const [rows2] = await conn.execute(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'loginMethod' AND TABLE_SCHEMA = DATABASE()`
+    );
+    
+    if (Array.isArray(rows2) && rows2.length === 0) {
+      await conn.execute(`ALTER TABLE users ADD COLUMN loginMethod varchar(50) DEFAULT 'email'`);
+      console.log("[Auth] ✅ loginMethod column created");
+    }
+    
+    await conn.end();
+    migrationDone = true;
+    console.log("[Auth] Migration complete");
+  } catch (error: any) {
+    console.error("[Auth] Migration error:", error.message);
+    // Mark as done to avoid retrying on every request
+    migrationDone = true;
   }
 }
-
-// Run migration on module load
-ensurePasswordHashColumn();
 
 export function registerAuthRoutes(app: Express) {
   // ==========================================
@@ -57,6 +83,9 @@ export function registerAuthRoutes(app: Express) {
     }
 
     try {
+      // Ensure migration ran before any Drizzle query
+      await ensureMigration();
+
       const db = await getDb();
       if (!db) {
         res.status(500).json({ error: "Banco de dados não disponível" });
@@ -136,6 +165,9 @@ export function registerAuthRoutes(app: Express) {
     }
 
     try {
+      // Ensure migration ran before any Drizzle query
+      await ensureMigration();
+
       const db = await getDb();
       if (!db) {
         res.status(500).json({ error: "Banco de dados não disponível" });
